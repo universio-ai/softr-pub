@@ -334,22 +334,31 @@
     ready(applyGradient);
   })();
 (function(){
-  const host = document.getElementById("universio-summary");
-  if (!host) return;
+  function ready(fn) {
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", fn, { once: true });
+    } else {
+      fn();
+    }
+  }
 
-  const root = document.createElement("div");
-  root.id = "uni-summary-root";
-  root.setAttribute("role", "region");
-  root.setAttribute("aria-live", "polite");
-  root.innerHTML = `
-    <div class="uni-summary-card">
-      <div class="uni-summary-body" id="uni-summary-body">
-        <p class="uni-summary-status"><span class="uni-loading-dots" aria-label="Loading module summaries"><span></span><span></span><span></span></span></p>
+  function init() {
+    const host = document.getElementById("universio-summary");
+    if (!host) return;
+
+    const root = document.createElement("div");
+    root.id = "uni-summary-root";
+    root.setAttribute("role", "region");
+    root.setAttribute("aria-live", "polite");
+    root.innerHTML = `
+      <div class="uni-summary-card">
+        <div class="uni-summary-body" id="uni-summary-body">
+          <p class="uni-summary-status"><span class="uni-loading-dots" aria-label="Loading module summaries"><span></span><span></span><span></span></span></p>
+        </div>
       </div>
-    </div>
-  `;
+    `;
 
-  host.appendChild(root);
+    host.appendChild(root);
 
   const pageLoadedPromise = new Promise((resolve) => {
     if (document.readyState === "complete") {
@@ -1384,4 +1393,7 @@
         headingEl.textContent = fallbackName;
       }
     });
+  }
+
+  ready(init);
 })();
