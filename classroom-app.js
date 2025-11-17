@@ -1,8 +1,40 @@
-// November 16, 2025 8:19pm
 (function () {
+  const UPDATED_AT = "2025-11-17T01:35:07Z";
+  console.log(`[UNI] classroom-app updated ${UPDATED_AT} (runtime ${new Date().toISOString()})`);
+
   const CLASSROOM_WRAPPER_ID = "universio-classroom";
   const CLASSROOM_DATA_ID = "uni-data";
   const MARKED_CDN = "https://cdn.jsdelivr.net/npm/marked/marked.min.js";
+
+  function findScriptHost() {
+    const matchesHint = (script) => {
+      try {
+        return Boolean(script?.src && script.src.includes("classroom-app.js"));
+      } catch {
+        return false;
+      }
+    };
+
+    const candidates = [];
+    const add = (el) => {
+      if (el && !candidates.includes(el)) candidates.push(el);
+    };
+
+    if (document.currentScript) {
+      add(document.currentScript.closest?.('[data-element-type="custom_code"]'));
+      add(document.currentScript.closest?.("section"));
+      add(document.currentScript.parentElement || null);
+    }
+
+    const matchingScripts = Array.from(document.querySelectorAll("script")).filter(matchesHint);
+    for (const script of matchingScripts) {
+      add(script.closest?.('[data-element-type="custom_code"]'));
+      add(script.closest?.("section"));
+      add(script.parentElement || null);
+    }
+
+    return candidates.find(Boolean) || null;
+  }
 
   function ensureWrapper() {
     return new Promise((resolve) => {
@@ -12,14 +44,7 @@
           wrapper = document.createElement("div");
           wrapper.id = CLASSROOM_WRAPPER_ID;
           wrapper.setAttribute("data-uni-root", "classroom");
-          const scriptHost =
-            (typeof document !== "undefined" &&
-              typeof document.currentScript !== "undefined" &&
-              document.currentScript &&
-              (document.currentScript.closest?.("[data-element-type=\"custom_code\"]") ||
-                document.currentScript.closest?.("section") ||
-                document.currentScript.parentElement)) ||
-            null;
+          const scriptHost = findScriptHost();
           let parent = scriptHost || document.body || document.documentElement;
           parent.appendChild(wrapper);
         }
