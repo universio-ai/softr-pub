@@ -2322,8 +2322,8 @@ injectStyles(`
     min-height: 100svh !important;
     min-height: 100dvh !important;
     overflow-x: hidden !important;
-    padding-left: 12px;
-    padding-right: 12px;
+    padding-left: calc(12px + env(safe-area-inset-left, 0px));
+    padding-right: calc(12px + env(safe-area-inset-right, 0px));
     box-sizing: border-box;
   }
 
