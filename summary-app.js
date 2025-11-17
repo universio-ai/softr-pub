@@ -51,6 +51,8 @@
     anchor.setAttribute("data-uni-root", "summary");
   }
 
+  let anchorObserver = null;
+
   function ensureAnchorAttached() {
     const { host, script } = findScriptHost();
     const targetParent = host || script?.parentElement || anchor.parentElement || document.body || document.documentElement;
@@ -71,14 +73,22 @@
 
     if (anchor.parentElement !== targetParent) {
       moveToTarget();
-      return;
+    } else {
+      // Ensure the anchor stays at the top of the Softr custom code block
+      const isAlreadyFirst = targetParent.firstChild === anchor;
+      const isBeforeScript = script && anchor.nextSibling === script;
+      if (!isAlreadyFirst && !isBeforeScript) {
+        moveToTarget();
+      }
     }
 
-    // Ensure the anchor stays at the top of the Softr custom code block
-    const isAlreadyFirst = targetParent.firstChild === anchor;
-    const isBeforeScript = script && anchor.nextSibling === script;
-    if (!isAlreadyFirst && !isBeforeScript) {
-      moveToTarget();
+    if ("MutationObserver" in window) {
+      if (anchorObserver) anchorObserver.disconnect();
+      anchorObserver = new MutationObserver(() => {
+        // Defer to avoid reacting to our own DOM mutations synchronously
+        requestAnimationFrame(() => ensureAnchorAttached());
+      });
+      anchorObserver.observe(targetParent, { childList: true });
     }
   }
 
