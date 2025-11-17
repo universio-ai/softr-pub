@@ -1041,9 +1041,32 @@
     return true;
   }
 
+  function parseTimestamp(value) {
+    if (typeof value !== "string") return null;
+    const ts = Date.parse(value);
+    return Number.isFinite(ts) ? ts : null;
+  }
+
+  function hasConversationContent(row) {
+    if (!row || typeof row !== "object") return false;
+    const transcript = typeof row.transcript === "string" ? row.transcript.trim() : "";
+    if (transcript) return true;
+    const messageText = formatMessages(row.messages);
+    return Boolean(messageText);
+  }
+
+  function summaryNeedsRefresh(row) {
+    if (!hasStoredSummary(row)) return false;
+    const updatedTs = parseTimestamp(row.updated_at);
+    const summaryUpdatedTs = parseTimestamp(row.summary_updated_at);
+    if (!updatedTs || !summaryUpdatedTs) return false;
+    if (updatedTs <= summaryUpdatedTs + 5000) return false;
+    return hasConversationContent(row);
+  }
+
   function shouldGenerateSummary(row) {
     if (!row || typeof row !== "object") return false;
-    if (hasStoredSummary(row)) return false;
+    if (hasStoredSummary(row) && !summaryNeedsRefresh(row)) return false;
     const transcript = typeof row.transcript === "string" ? row.transcript.trim() : "";
     if (transcript) return true;
     const messageText = formatMessages(row.messages);
