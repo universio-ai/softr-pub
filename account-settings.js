@@ -1,5 +1,4 @@
-(() => {
-  const ACCOUNT_SETTINGS_STYLE = `
+<style>
   /* Action row inside the Current Plan card */
   #billing-card-actions {
     display: flex;
@@ -11,7 +10,7 @@
   @media (max-width: 768px) {
     #billing-card-actions { flex-direction: column; align-items: stretch; }
   }
-
+  
   /* Match all primary action buttons */
 #billing-card-actions button,
 #save-prefs-btn {
@@ -52,19 +51,16 @@
     align-items: stretch;
   }
 }
-  `;
 
-  function ensureAccountSettingsStyles() {
-    if (document.getElementById("account-settings-style")) return;
-    const style = document.createElement("style");
-    style.id = "account-settings-style";
-    style.textContent = ACCOUNT_SETTINGS_STYLE;
-    document.head.appendChild(style);
-  }
 
+</style>
+
+
+
+<script type="module">
   const SOFTR_FN_BASE = "https://oomcxsfikujptkfsqgzi.supabase.co/functions/v1";
   const LOGIN_URL = "/sign-in";
-  const PORTAL_FN = `${SOFTR_FN_BASE}/create-portal-session`;
+  const PORTAL_FN = `${SOFTR_FN_BASE}/create-portal-session`; // NEW
 
   // ---------- BFF helpers ----------
   function fetchWithRetry(fn, retries = 3, delay = 300) {
@@ -80,6 +76,9 @@
       throw lastErr;
     })();
   }
+
+
+
 
 // --- user context helpers (single source of truth) ---
 function resolveEmail() {
@@ -123,11 +122,15 @@ function getUserCtx() {
   return { email, name, plan_display, status, tone, pace, plan_status };
 }
 
+
+
+
   // --- helpers for UI text updates and date formatting ---
   function setTextById(id, text) {
     const el = document.getElementById(id);
     if (el) el.textContent = text;
   }
+
 
   // NEW: Softr record id helper for X-User-Id header
   function getSoftrId() {
@@ -225,14 +228,14 @@ const { plan_display, status } = getUserCtx();
       row.style.marginBottom = "12px";
       row.innerHTML = `
         <div style="margin-bottom:6px;"><span style="font-weight:600; font-size:14px;">${label}</span></div>
-        <div style=\"padding:12px; border:1px solid #e5e5e5; border-radius:8px; background:#f9f9f9;\">${value}</div>`;
+        <div style="padding:12px; border:1px solid #e5e5e5; border-radius:8px; background:#f9f9f9;">${value}</div>`;
       return row;
     };
 
     // Only two lines now
-card.appendChild(line("Current Plan", `<span id=\"billing-current-plan\">${plan_display || "—"}</span>`));
+card.appendChild(line("Current Plan", `<span id="billing-current-plan">${plan_display || "—"}</span>`));
 
-    card.appendChild(line("Billing Status", `<span id=\"billing-status-value\">${status || "—"}</span>`));
+    card.appendChild(line("Billing Status", `<span id="billing-status-value">${status || "—"}</span>`));
 
     const actions = document.createElement("div");
     actions.id = "billing-card-actions";
@@ -248,6 +251,10 @@ card.appendChild(line("Current Plan", `<span id=\"billing-current-plan\">${plan_
       const el = document.getElementById("billing-status-value");
       if (el) el.textContent = String(ctx.plan_status);
     }
+
+
+
+
 
 // Authoritative values from Profiles (status + plan)
 (async () => {
@@ -295,9 +302,13 @@ card.appendChild(line("Current Plan", `<span id=\"billing-current-plan\">${plan_
   }
 })();
 
+
+
+
   } catch (e) { console.error("[account] injectBillingInfo error", e); }
 }
 
+  
   function injectTutorPrefsCard() {
   try {
     if (document.getElementById("tutor-prefs-card")) return;
@@ -360,7 +371,7 @@ card.appendChild(line("Current Plan", `<span id=\"billing-current-plan\">${plan_
         </div>
         <select id="${id}" name="${id}"
           style="width:100%; padding:12px; border:1px solid #e5e5e5; border-radius:8px; background:#fff; font-size:14px;">
-          ${options.map(o => `<option value=\"${o.value}\">${o.label}</option>`).join("")}
+          ${options.map(o => `<option value="${o.value}">${o.label}</option>`).join("")}
         </select>`;
       return wrap;
     };
@@ -516,6 +527,8 @@ card.appendChild(line("Current Plan", `<span id=\"billing-current-plan\">${plan_
   }
 }
 
+
+
   // ---------- Layout + styling ----------
   function rearrangeAndStyleButtons() {
     try {
@@ -579,7 +592,6 @@ card.appendChild(line("Current Plan", `<span id=\"billing-current-plan\">${plan_
     try {
       const { email } = getUserCtx();
       if (!email) { console.warn("[account] No user email found"); return; }
-      ensureAccountSettingsStyles();
       injectBillingInfo();
       injectTutorPrefsCard();
       rearrangeAndStyleButtons();
@@ -588,4 +600,5 @@ card.appendChild(line("Current Plan", `<span id=\"billing-current-plan\">${plan_
 
   document.addEventListener("DOMContentLoaded", () => setTimeout(init, 300));
   window.addEventListener("@softr/page-content-loaded", () => setTimeout(init, 300));
-})();
+
+</script>
