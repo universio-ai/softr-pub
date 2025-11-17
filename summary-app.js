@@ -9,25 +9,60 @@
     }
   }
 
+  function findScriptHost() {
+    const matchesHint = (script) => {
+      try {
+        if (script?.src && script.src.includes("summary-app.js")) return true;
+        const content = script?.textContent || "";
+        return content.includes("summary-app.js");
+      } catch {
+        return false;
+      }
+    };
+
+    const candidates = [];
+    const add = (el) => {
+      if (el && !candidates.includes(el)) candidates.push(el);
+    };
+
+    if (document.currentScript) {
+      add(document.currentScript.closest?.('[data-element-type="custom_code"]'));
+      add(document.currentScript.closest?.("section"));
+      add(document.currentScript.parentElement || null);
+    }
+
+    const matchingScripts = Array.from(document.querySelectorAll("script")).filter(matchesHint);
+    for (const script of matchingScripts) {
+      add(script.closest?.('[data-element-type="custom_code"]'));
+      add(script.closest?.("section"));
+      add(script.parentElement || null);
+    }
+
+    return candidates.find(Boolean) || null;
+  }
+
   let anchor = document.getElementById(anchorId);
   if (!anchor) {
     anchor = document.createElement("div");
     anchor.id = anchorId;
     anchor.setAttribute("data-uni-root", "summary");
-    const currentScript = document.currentScript;
-    if (currentScript && currentScript.parentNode && currentScript.parentNode !== document.body) {
-      currentScript.parentNode.insertBefore(anchor, currentScript);
-    } else if (document.body) {
-      document.body.appendChild(anchor);
+  }
+
+  function ensureAnchorAttached() {
+    const scriptHost = findScriptHost();
+    const targetParent = scriptHost || anchor.parentElement || document.body || document.documentElement;
+    if (!targetParent) return;
+    if (anchor.parentElement !== targetParent) {
+      anchor.remove();
+      targetParent.appendChild(anchor);
+    } else if (!targetParent.contains(anchor)) {
+      targetParent.appendChild(anchor);
     }
   }
 
-  if (!document.body || !document.body.contains(anchor)) {
-    ready(() => {
-      if (!document.body.contains(anchor)) {
-        document.body.appendChild(anchor);
-      }
-    });
+  ensureAnchorAttached();
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", ensureAnchorAttached, { once: true });
   }
 
   const styleId = "uni-summary-style";
