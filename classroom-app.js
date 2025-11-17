@@ -9,7 +9,9 @@
   function findScriptHost() {
     const matchesHint = (script) => {
       try {
-        return Boolean(script?.src && script.src.includes("classroom-app.js"));
+        if (script?.src && script.src.includes("classroom-app.js")) return true;
+        const content = script?.textContent || "";
+        return content.includes("classroom-app.js");
       } catch {
         return false;
       }
