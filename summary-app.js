@@ -21,26 +21,27 @@
     };
 
     const candidates = [];
+    let scriptNode = null;
     const add = (el) => {
       if (el && !candidates.includes(el)) candidates.push(el);
     };
 
     if (document.currentScript) {
+      scriptNode = document.currentScript;
       add(document.currentScript.closest?.('[data-element-type="custom_code"]'));
-      add(document.currentScript.closest?.('.col-12, .col, .container, .row'));
       add(document.currentScript.closest?.("section"));
       add(document.currentScript.parentElement || null);
     }
 
     const matchingScripts = Array.from(document.querySelectorAll("script")).filter(matchesHint);
     for (const script of matchingScripts) {
+      if (!scriptNode) scriptNode = script;
       add(script.closest?.('[data-element-type="custom_code"]'));
-      add(script.closest?.('.col-12, .col, .container, .row'));
       add(script.closest?.("section"));
       add(script.parentElement || null);
     }
 
-    return candidates.find(Boolean) || null;
+    return { host: candidates.find(Boolean) || null, script: scriptNode };
   }
 
   let anchor = document.getElementById(anchorId);
@@ -51,9 +52,21 @@
   }
 
   function ensureAnchorAttached() {
-    const scriptHost = findScriptHost();
-    const targetParent = scriptHost || anchor.parentElement || document.body || document.documentElement;
+    const { host, script } = findScriptHost();
+    const targetParent = host || anchor.parentElement || document.body || document.documentElement;
     if (!targetParent) return;
+
+    const placedByScript = (() => {
+      const parent = script?.parentElement;
+      if (!parent) return false;
+      if (anchor.parentElement === parent && anchor.nextSibling === script) return true;
+      anchor.remove();
+      parent.insertBefore(anchor, script);
+      return true;
+    })();
+
+    if (placedByScript) return;
+
     if (anchor.parentElement !== targetParent) {
       anchor.remove();
       targetParent.appendChild(anchor);
