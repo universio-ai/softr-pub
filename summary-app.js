@@ -26,16 +26,18 @@
     };
 
     if (document.currentScript) {
-      add(document.currentScript.closest?.('[data-element-type="custom_code"]'));
-      add(document.currentScript.closest?.("section"));
       add(document.currentScript.parentElement || null);
+      add(document.currentScript.closest?.('[data-element-type="custom_code"]'));
+      add(document.currentScript.closest?.('.col-12, .col, .container, .row'));
+      add(document.currentScript.closest?.("section"));
     }
 
     const matchingScripts = Array.from(document.querySelectorAll("script")).filter(matchesHint);
     for (const script of matchingScripts) {
-      add(script.closest?.('[data-element-type="custom_code"]'));
-      add(script.closest?.("section"));
       add(script.parentElement || null);
+      add(script.closest?.('[data-element-type="custom_code"]'));
+      add(script.closest?.('.col-12, .col, .container, .row'));
+      add(script.closest?.("section"));
     }
 
     return candidates.find(Boolean) || null;
