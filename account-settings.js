@@ -63,6 +63,25 @@
   const PORTAL_FN = `${SOFTR_FN_BASE}/create-portal-session`; // NEW
 
   // ---------- BFF helpers ----------
+  function buildAuthedInit(init = {}) {
+    const headers = new Headers(init.headers || {});
+    if (!headers.has("Authorization") && window.__U?.cwt) {
+      headers.set("Authorization", `Bearer ${window.__U.cwt}`);
+    }
+    return { ...init, headers };
+  }
+
+  async function secureFetch(input, init = {}) {
+    const fetcher = (typeof apiFetch === "function") ? apiFetch : fetch;
+    const nextInit = buildAuthedInit(init);
+
+    if (fetcher === fetch && typeof ensureFreshToken === "function") {
+      try { await ensureFreshToken(); } catch (err) { console.warn("[account] token refresh skipped", err); }
+    }
+
+    return fetcher(input, nextInit);
+  }
+
   function fetchWithRetry(fn, retries = 3, delay = 300) {
     let lastErr;
     return (async () => {
@@ -264,7 +283,7 @@ card.appendChild(line("Current Plan", `<span id="billing-current-plan">${plan_di
       return;
     }
 
-    const res = await fetch(`${SOFTR_FN_BASE}/fetch-profiles`, {
+    const res = await secureFetch(`${SOFTR_FN_BASE}/fetch-profiles`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -409,7 +428,7 @@ card.appendChild(line("Current Plan", `<span id="billing-current-plan">${plan_di
       if (!email) return;
 
       try {
-        const res = await fetch(`${SOFTR_FN_BASE}/fetch-profiles`, {
+        const res = await secureFetch(`${SOFTR_FN_BASE}/fetch-profiles`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -494,7 +513,7 @@ card.appendChild(line("Current Plan", `<span id="billing-current-plan">${plan_di
 
   btn.disabled = true; btn.style.opacity = "0.6"; status.textContent = "Saving…";
   try {
-    const res = await fetchWithRetry(() => fetch(`${SOFTR_FN_BASE}/fetch-profiles`, {
+    const res = await fetchWithRetry(() => secureFetch(`${SOFTR_FN_BASE}/fetch-profiles`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

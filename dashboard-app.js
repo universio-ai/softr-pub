@@ -362,11 +362,18 @@ function toggleGridsUnified(){
     console.debug("User context →",u);
     if(!email){console.warn("⚠️ No user email found; aborting");showFreshUser();console.groupEnd();return;}
 
-    fetch("https://oomcxsfikujptkfsqgzi.supabase.co/functions/v1/fetch-profiles",{
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({email})
-    })
+    const fetcher=(typeof apiFetch==="function")?apiFetch:fetch;
+    const headers=new Headers({"Content-Type":"application/json"});
+    if(!headers.has("Authorization") && window.__U?.cwt){headers.set("Authorization",`Bearer ${window.__U.cwt}`);} 
+    const init={method:"POST",headers,body:JSON.stringify({email})};
+    const doFetch=async()=>{
+      if(fetcher===fetch && typeof ensureFreshToken==="function"){
+        try{await ensureFreshToken();}catch(err){console.warn("[dashboard] token refresh skipped",err);} 
+      }
+      return fetcher("https://oomcxsfikujptkfsqgzi.supabase.co/functions/v1/fetch-profiles",init);
+    };
+
+    doFetch()
     .then(r=>r.json())
     .then(res=>{
       console.debug("Returned JSON →",res);
