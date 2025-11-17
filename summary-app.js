@@ -704,12 +704,6 @@
     root.insertBefore(headingEl, root.firstChild);
   }
 
-  function setCourseHeading(name) {
-    if (!headingEl) return;
-    const cleanName = String(name || "").trim();
-    headingEl.textContent = cleanName ? `COURSE: ${cleanName}` : "COURSE:";
-  }
-
   function createLoadingDots(label = "Loading") {
     const wrap = document.createElement("span");
     wrap.className = "uni-loading-dots";
@@ -778,7 +772,9 @@
   const storedCourseName = String(storedNames?.courseName || "").trim();
   const initialCourseName = storedCourseName || fallbackName;
   window.__uniCourseName = initialCourseName;
-  setCourseHeading(initialCourseName);
+  if (headingEl) {
+    headingEl.textContent = "";
+  }
 
   renderLoadingPlaceholder();
 
@@ -1450,7 +1446,7 @@
   fetchCourseName(normalizedCourse)
     .then((name) => {
       window.__uniCourseName = name;
-      setCourseHeading(name);
+      if (headingEl) headingEl.textContent = name;
       try {
         localStorage.setItem(
           "uni:lastNames",
@@ -1461,7 +1457,7 @@
     .catch(() => {
       window.__uniCourseName = fallbackName;
       if (headingEl && !headingEl.textContent && fallbackName) {
-        setCourseHeading(fallbackName);
+        headingEl.textContent = fallbackName;
       }
     });
   }
