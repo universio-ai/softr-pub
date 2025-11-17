@@ -1,4 +1,4 @@
-console.log("Hey there, world. This is a test prior to migrating Classroom code from HTML to Javascript. 😊");
+console.log("Hello, world. This is a test prior to migrating Classroom code from HTML to Javascript. 😊");
 
 window.addEventListener("load", () => {
   console.log("Softr: attempting external script load...");
