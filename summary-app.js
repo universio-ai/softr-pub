@@ -53,25 +53,32 @@
 
   function ensureAnchorAttached() {
     const { host, script } = findScriptHost();
-    const targetParent = host || anchor.parentElement || document.body || document.documentElement;
+    const targetParent = host || script?.parentElement || anchor.parentElement || document.body || document.documentElement;
     if (!targetParent) return;
 
-    const placedByScript = (() => {
-      const parent = script?.parentElement;
-      if (!parent) return false;
-      if (anchor.parentElement === parent && anchor.nextSibling === script) return true;
+    const moveToTarget = () => {
       anchor.remove();
-      parent.insertBefore(anchor, script);
-      return true;
-    })();
-
-    if (placedByScript) return;
+      if (script && script.parentElement === targetParent) {
+        targetParent.insertBefore(anchor, script);
+        return;
+      }
+      if (targetParent.firstChild) {
+        targetParent.insertBefore(anchor, targetParent.firstChild);
+        return;
+      }
+      targetParent.appendChild(anchor);
+    };
 
     if (anchor.parentElement !== targetParent) {
-      anchor.remove();
-      targetParent.appendChild(anchor);
-    } else if (!targetParent.contains(anchor)) {
-      targetParent.appendChild(anchor);
+      moveToTarget();
+      return;
+    }
+
+    // Ensure the anchor stays at the top of the Softr custom code block
+    const isAlreadyFirst = targetParent.firstChild === anchor;
+    const isBeforeScript = script && anchor.nextSibling === script;
+    if (!isAlreadyFirst && !isBeforeScript) {
+      moveToTarget();
     }
   }
 
