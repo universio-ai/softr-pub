@@ -1,5 +1,5 @@
 (function () {
-  const UPDATED_AT = "2025-11-17T01:35:07Z";
+  const UPDATED_AT = "2025-11-17T02:15:34Z";
   console.log(`[UNI] classroom-app updated ${UPDATED_AT} (runtime ${new Date().toISOString()})`);
 
   const CLASSROOM_WRAPPER_ID = "universio-classroom";
@@ -2318,10 +2318,13 @@ injectStyles(`
     position: relative;
   }
 
-  #${ROOT_ID} { 
-    min-height: 100svh !important; 
-    min-height: 100dvh !important; 
+  #${ROOT_ID} {
+    min-height: 100svh !important;
+    min-height: 100dvh !important;
     overflow-x: hidden !important;
+    padding-left: 12px;
+    padding-right: 12px;
+    box-sizing: border-box;
   }
 
   #${ROOT_ID} .uni-card { 
