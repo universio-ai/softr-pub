@@ -1,16 +1,33 @@
 (function() {
   const anchorId = "universio-summary";
+
+  function ready(fn) {
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", fn, { once: true });
+    } else {
+      fn();
+    }
+  }
+
   let anchor = document.getElementById(anchorId);
   if (!anchor) {
     anchor = document.createElement("div");
     anchor.id = anchorId;
     anchor.setAttribute("data-uni-root", "summary");
     const currentScript = document.currentScript;
-    if (currentScript && currentScript.parentNode) {
+    if (currentScript && currentScript.parentNode && currentScript.parentNode !== document.body) {
       currentScript.parentNode.insertBefore(anchor, currentScript);
-    } else {
+    } else if (document.body) {
       document.body.appendChild(anchor);
     }
+  }
+
+  if (!document.body || !document.body.contains(anchor)) {
+    ready(() => {
+      if (!document.body.contains(anchor)) {
+        document.body.appendChild(anchor);
+      }
+    });
   }
 
   const styleId = "uni-summary-style";
