@@ -11,7 +11,15 @@
           wrapper = document.createElement("div");
           wrapper.id = CLASSROOM_WRAPPER_ID;
           wrapper.setAttribute("data-uni-root", "classroom");
-          let parent = document.body || document.documentElement;
+          const scriptHost =
+            (typeof document !== "undefined" &&
+              typeof document.currentScript !== "undefined" &&
+              document.currentScript &&
+              (document.currentScript.closest?.("[data-element-type=\"custom_code\"]") ||
+                document.currentScript.closest?.("section") ||
+                document.currentScript.parentElement)) ||
+            null;
+          let parent = scriptHost || document.body || document.documentElement;
           parent.appendChild(wrapper);
         }
 
