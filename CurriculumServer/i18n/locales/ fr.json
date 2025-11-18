@@ -1,0 +1,12 @@
+{
+  "app.title": "Universio",
+  "nav.dashboard": "Tableau de bord",
+  "onboarding.languagePrompt": "Choisissez votre langue préférée",
+  "onboarding.notice": "L'interface basculera après avoir terminé l'intégration.",
+  "classroom.start": "Démarrer",
+  "footer.language": "Langue",
+  "settings.language": "Langue préférée",
+  "settings.save": "Enregistrer les préférences",
+  "language.change.confirm": "Changer la langue de la conversation en {language} ?",
+  "language.updated": "Langue mise à jour en {language}."
+}

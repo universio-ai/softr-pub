@@ -1,0 +1,12 @@
+{
+  "app.title": "يونيفيرسيو",
+  "nav.dashboard": "لوحة التحكم",
+  "onboarding.languagePrompt": "اختر لغتك المفضلة",
+  "onboarding.notice": "سيتم تغيير الواجهة بعد إكمال الإعداد.",
+  "classroom.start": "ابدأ",
+  "footer.language": "اللغة",
+  "settings.language": "اللغة المفضلة",
+  "settings.save": "حفظ التفضيلات",
+  "language.change.confirm": "هل تريد تغيير لغة المحادثة إلى {language}؟",
+  "language.updated": "تم تحديث اللغة إلى {language}."
+}

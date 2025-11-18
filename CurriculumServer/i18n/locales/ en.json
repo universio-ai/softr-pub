@@ -1,0 +1,12 @@
+{
+  "app.title": "Universio",
+  "nav.dashboard": "Dashboard",
+  "onboarding.languagePrompt": "Choose your preferred language",
+  "onboarding.notice": "The UI will switch after you complete onboarding.",
+  "classroom.start": "Start",
+  "footer.language": "Language",
+  "settings.language": "Preferred language",
+  "settings.save": "Save Preferences",
+  "language.change.confirm": "Switch conversation language to {language}?",
+  "language.updated": "Language updated to {language}."
+}

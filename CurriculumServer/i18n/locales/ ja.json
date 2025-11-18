@@ -1,0 +1,12 @@
+{
+  "app.title": "Universio",
+  "nav.dashboard": "ダッシュボード",
+  "onboarding.languagePrompt": "希望する言語を選択してください",
+  "onboarding.notice": "オンボーディング完了後にUIが切り替わります。",
+  "classroom.start": "開始",
+  "footer.language": "言語",
+  "settings.language": "希望言語",
+  "settings.save": "設定を保存",
+  "language.change.confirm": "会話の言語を{language}に切り替えますか？",
+  "language.updated": "言語を{language}に更新しました。"
+}

@@ -1,0 +1,12 @@
+{
+  "app.title": "Universio",
+  "nav.dashboard": "डैशबोर्ड",
+  "onboarding.languagePrompt": "अपनी पसंदीदा भाषा चुनें",
+  "onboarding.notice": "ऑनबोर्डिंग पूरा करने के बाद इंटरफ़ेस बदलेगा।",
+  "classroom.start": "शुरू करें",
+  "footer.language": "भाषा",
+  "settings.language": "पसंदीदा भाषा",
+  "settings.save": "पसंद सहेजें",
+  "language.change.confirm": "वार्तालाप की भाषा {language} में बदलें?",
+  "language.updated": "भाषा {language} में अपडेट हो गई है।"
+}

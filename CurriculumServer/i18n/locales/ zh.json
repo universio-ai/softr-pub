@@ -1,0 +1,12 @@
+{
+  "app.title": "Universio",
+  "nav.dashboard": "仪表盘",
+  "onboarding.languagePrompt": "选择你的首选语言",
+  "onboarding.notice": "完成入门后界面将切换。",
+  "classroom.start": "开始",
+  "footer.language": "语言",
+  "settings.language": "首选语言",
+  "settings.save": "保存偏好",
+  "language.change.confirm": "将对话语言切换为{language}？",
+  "language.updated": "语言已更新为{language}。"
+}
