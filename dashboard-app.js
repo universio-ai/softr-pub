@@ -390,8 +390,8 @@ function toggleGridsUnified(){
   };
 
   const DISPLAY_MODE={grid1:"block",grid2:"flex",grid3:"flex",grid4:"flex",grid5:"flex"};
-  const applyStates=states=>{
-    __umLastGridStates=states;
+  const applyStates=(states,{remember=true}={})=>{
+    if(remember) __umLastGridStates=states;
     Object.entries(DISPLAY_MODE).forEach(([id,mode])=>{
       const el=$(id);
       show(el,states[id]?mode:"none");
@@ -409,9 +409,17 @@ function toggleGridsUnified(){
       requestAnimationFrame(()=>{ bubbleize(); });
     }
   };
+  window.__umReapplyGridStates = ()=>{
+    if(!__umLastGridStates) return;
+    applyStates(__umLastGridStates);
+    const bubbleize = window.__umBubbleizeSections;
+    if (typeof bubbleize === 'function') {
+      requestAnimationFrame(()=>{ bubbleize(); });
+    }
+  };
   const showFreshUser=()=>applyStates({grid1:true,grid2:false,grid3:false,grid4:false,grid5:false});
 
-  const hideAll=()=>applyStates({grid1:false,grid2:false,grid3:false,grid4:false,grid5:false});
+  const hideAll=()=>applyStates({grid1:false,grid2:false,grid3:false,grid4:false,grid5:false},{remember:false});
 
   console.groupCollapsed("🔍 Universio Dashboard Debug");
   hideAll();
