@@ -75,34 +75,35 @@ html,body{
   }
 })();
 
-// 🩵 UNIVERSIO DASHBOARD: lightweight readiness nudge
+// 🩵 UNIVERSIO DASHBOARD: Softr pre-hydration hard gate
 (function ensureSoftrUserReady(){
-  const deadline = Date.now() + 900; // wait up to 0.9 s to cut startup delay
+  const deadline = Date.now() + 1500; // wait up to 1.5 s
   const ready = () =>
     window.logged_in_user?.softr_user_email ||
     window.Softr?.currentUser?.softr_user_email ||
     window.__U?.profile?.softr_user_email;
 
-  // Instead of patching addEventListener (which can fight Softr),
-  // just log if context is late so downstream code can decide.
-  (async ()=>{
-    while(!ready() && Date.now() < deadline)
-      await new Promise(r=>setTimeout(r,80));
-    if(!ready()) console.warn('[BOOT] Softr user context not ready after 0.9s');
-  })();
+  // 🧩 Hold Softr rendering until user context ready
+  const origAddEvent = window.addEventListener;
+  window.addEventListener = function(type, listener, opts){
+    // intercept Softr’s self-init events
+    if (type === 'load' || type === 'softr:pageLoaded') {
+      const wait = async ()=>{
+        const start = Date.now();
+        while(!ready() && Date.now() < deadline)
+          await new Promise(r=>setTimeout(r,80));
+        listener();
+        console.debug(`[BOOT PATCH] Softr ready after ${Date.now()-start} ms`);
+      };
+      wait();
+    } else {
+      origAddEvent.call(window, type, listener, opts);
+    }
+  };
 })();
 
-// Pre-hide grids immediately at parse and keep them hidden for late-added DOM
-// nodes so we never flash grid1 before visibility logic applies.
+// Pre-hide grids immediately at parse to kill any flash
 (function preHide(){
-  const css=`#grid1,#grid2,#grid3,#grid4,#grid5{display:none!important;visibility:hidden!important;opacity:0!important;}`;
-  if(!document.getElementById('um-grid-prehide')){
-    const style=document.createElement('style');
-    style.id='um-grid-prehide';
-    style.textContent=css;
-    document.head.appendChild(style);
-  }
-
   ["grid1","grid2","grid3","grid4","grid5"].forEach(id=>{
     const el=document.getElementById(id);
     if(!el) return;
@@ -216,7 +217,6 @@ function rootsFor(t){const o=[];(t.selectors||[]).forEach(s=>o.push(...document.
 function bubbleize(h){if(!h||h.dataset.umBubbled==='1'||h.querySelector('.uni-bubble'))return;const t=(h.textContent||'').trim();if(!t)return;const s=document.createElement('span');s.className='uni-bubble tutor um-section um-fade-in';s.textContent=t;h.dataset.umBubbled='1';h.textContent='';h.appendChild(s);}
 function within(r,t){const hs=[...r.querySelectorAll('h1,h2,h3,h4')].filter(isVis);const h=hs.find(el=>t.test((el.textContent||'').trim()))||hs[0];if(h)bubbleize(h);}
 function run(){TARGETS.forEach(t=>{rootsFor(t).forEach(r=>within(r,t.textMatch));});}
-if(!window.__umBubbleizeSections) window.__umBubbleizeSections=run;
 (document.readyState!=='loading')?run():document.addEventListener('DOMContentLoaded',run);
 window.addEventListener('@softr/page-content-loaded',run);
 new MutationObserver(run).observe(document.getElementById('page-content')||document.body,{childList:true,subtree:true});
@@ -297,18 +297,7 @@ function refresh(){
   if(g!==host){ placeHello(g); }
 }
 function tryUntilVisible(){
-  const grid = topGrid();
-
-  // If no grid is currently visible, keep waiting quietly without incrementing
-  // the retry counter—this prevents noisy warnings while visibility states load.
-  if(!grid){
-    retryCount = 0;
-    setTimeout(tryUntilVisible, 140);
-    return;
-  }
-
-  placeHello(grid);
-
+  refresh();
   const bubble=hello;
   const ok=bubble && bubble.offsetParent!==null && bubble.offsetHeight>0;
   if(ok || retryCount>=maxRetries){
@@ -316,14 +305,8 @@ function tryUntilVisible(){
     return;
   }
   retryCount++;
-  setTimeout(tryUntilVisible, 220);
+  setTimeout(tryUntilVisible, 250);
 }
-// Expose a safe, debounced retrier so grid logic can re-trigger the hello bubble
-// without depending on closure scope internals.
-window.__umHelloRetry = () => {
-  retryCount = 0;
-  tryUntilVisible();
-};
 function boot(){
   setTimeout(()=>{
     refresh();
@@ -331,7 +314,7 @@ function boot(){
     window.addEventListener('scroll',refresh,{passive:true});
     window.addEventListener('resize',refresh,{passive:true});
     // re-inject after Softr refreshes or your gating reruns
-    window.addEventListener('@softr/page-content-loaded',()=>{setTimeout(tryUntilVisible,160);});
+    window.addEventListener('@softr/page-content-loaded',()=>{setTimeout(tryUntilVisible,200);});
   },SAFE_DELAY_MS);
 }
 
@@ -341,38 +324,8 @@ window.addEventListener('load',boot,{once:true});
 })();
 
 // 6) GRID VISIBILITY VIA SUPABASE
-let __umLastGridStates=null;
-window.__umReapplyGridStates = window.__umReapplyGridStates || (()=>{});
 function toggleGridsUnified(){
   const $=id=>document.getElementById(id);
-
-  const GRID_IDS = ["grid1","grid2","grid3","grid4","grid5"];
-  let lastStates = {grid1:false,grid2:false,grid3:false,grid4:false,grid5:false};
-  let reapplyQueued = false;
-
-  const queueReapply = () => {
-    if (reapplyQueued) return;
-    reapplyQueued = true;
-    setTimeout(() => {
-      reapplyQueued = false;
-      applyStates(lastStates);
-    }, 40);
-  };
-
-  // Fallback guard: if the fetch never settles, unhide starter grid so the page
-  // isn't stuck blank (which also blocks the hello bubble from ever appearing).
-  // Give Supabase extra breathing room so we don't flash the sampler grid
-  // before the real states arrive.
-  let settled=false;
-  const failSafe=()=>{
-    if(settled) return;
-    settled=true;
-    console.warn("⚠️ Grid state fetch timeout; showing starter grid");
-    showFreshUser();
-    // allow bubbles to re-run once something is on-screen
-    window.dispatchEvent(new CustomEvent('@softr/page-content-loaded'));
-  };
-  const failSafeId=setTimeout(failSafe,3500);
 
   /* ⬇️ EDITED: only the body of `show` changed */
   const show=(el,val)=>{
@@ -390,67 +343,39 @@ function toggleGridsUnified(){
   };
 
   const DISPLAY_MODE={grid1:"block",grid2:"flex",grid3:"flex",grid4:"flex",grid5:"flex"};
-  const applyStates=(states,{remember=true}={})=>{
-    if(remember) __umLastGridStates=states;
+  const applyStates=states=>{
     Object.entries(DISPLAY_MODE).forEach(([id,mode])=>{
       const el=$(id);
       show(el,states[id]?mode:"none");
     });
-    // Re-run bubble styling after layout settles so headers get wrapped
-    const bubbleize = window.__umBubbleizeSections;
-    if (typeof bubbleize === 'function') requestAnimationFrame(()=>bubbleize());
   };
   const showFreshUser=()=>applyStates({grid1:true,grid2:false,grid3:false,grid4:false,grid5:false});
 
-  const hideAll=()=>applyStates({grid1:false,grid2:false,grid3:false,grid4:false,grid5:false},{remember:false});
+  const hideAll=()=>applyStates({grid1:false,grid2:false,grid3:false,grid4:false,grid5:false});
 
   console.groupCollapsed("🔍 Universio Dashboard Debug");
   hideAll();
-
-  // Prevent blanks: if fetch is slow, reveal starter view and bubbleize
-  const failSafe = setTimeout(()=>{
-    console.warn("⚠️ Grid state fetch timeout; showing starter grid");
-    showFreshUser();
-    window.dispatchEvent(new CustomEvent('@softr/page-content-loaded'));
-  },1400);
 
   try{
     const u=window.logged_in_user||(window.Softr&&window.Softr.currentUser)||(window.__U&&window.__U.profile);
     const email=u?.email||u?.softr_user_email||null;
     console.debug("User context →",u);
-    if(!email){clearTimeout(gridFailSafeTimer);console.warn("⚠️ No user email found; aborting");showFreshUser();console.groupEnd();return;}
+    if(!email){console.warn("⚠️ No user email found; aborting");showFreshUser();console.groupEnd();return;}
 
     const fetcher=(typeof apiFetch==="function")?apiFetch:fetch;
-    const resolveCWT = async ()=>{
-      const deadline=Date.now()+900;
-      while(!window.__U?.cwt && Date.now()<deadline){
-        await new Promise(r=>setTimeout(r,80));
-      }
-      return window.__U?.cwt || null;
-    };
-
     const headers=new Headers({"Content-Type":"application/json"});
-    if(!headers.has("Authorization") && window.__U?.cwt){headers.set("Authorization",`Bearer ${window.__U.cwt}`);}
+    if(!headers.has("Authorization") && window.__U?.cwt){headers.set("Authorization",`Bearer ${window.__U.cwt}`);} 
     const init={method:"POST",headers,body:JSON.stringify({email})};
     const doFetch=async()=>{
-      const token = await resolveCWT();
-      if(token && !headers.has("Authorization")) headers.set("Authorization",`Bearer ${token}`);
       if(fetcher===fetch && typeof ensureFreshToken==="function"){
-        try{await ensureFreshToken();}catch(err){console.warn("[dashboard] token refresh skipped",err);}
+        try{await ensureFreshToken();}catch(err){console.warn("[dashboard] token refresh skipped",err);} 
       }
       return fetcher("https://oomcxsfikujptkfsqgzi.supabase.co/functions/v1/fetch-profiles",init);
     };
 
     doFetch()
-    .then(async r=>{
-      if(!r.ok){
-        console.warn(`[dashboard] fetch-profiles ${r.status} (${r.statusText}); showing starter grid`);
-        throw new Error(`fetch-profiles ${r.status}`);
-      }
-      return r.json();
-    })
+    .then(r=>r.json())
     .then(res=>{
-      clearTimeout(failSafe);
       console.debug("Returned JSON →",res);
       const data = res.data || res; // accept either shape
       const error = res.error;
@@ -484,29 +409,23 @@ function toggleGridsUnified(){
 
       if(!Object.values(states).some(Boolean)) states.grid1=true;
 
-      clearTimeout(gridFailSafeTimer);
       applyStates(states);
 
-      // Notify other helpers that content is visible again
-      window.dispatchEvent(new CustomEvent('@softr/page-content-loaded'));
-
       // Re-run bubbleization after showing grids
-      const bubbleize = window.__umBubbleizeSections;
-      if (typeof bubbleize === 'function') requestAnimationFrame(()=>bubbleize());
+      window.dispatchEvent(new CustomEvent('@softr/page-content-loaded'));
 
       console.groupEnd();
     })
-    .catch(e=>{clearTimeout(failSafe);console.error("❌ Fetch failed:",e);showFreshUser();console.groupEnd();});
+    .catch(e=>{console.error("❌ Fetch failed:",e);showFreshUser();console.groupEnd();});
   }catch(e){console.error("❌ toggleGridsUnified crashed:",e);showFreshUser();console.groupEnd();}
 }
 (function(){
  let hasRun=false;
-  const runOnce=()=>{if(hasRun)return;hasRun=true;console.log("⚡ Universio grids initializing");toggleGridsUnified();};
-  window.addEventListener("softr:pageLoaded",runOnce,{once:true});
-  /* Optional: also listen to Softr's other load event without removing yours */
-  window.addEventListener("@softr/page-content-loaded",runOnce,{once:true});
-  document.addEventListener("DOMContentLoaded",()=>setTimeout(runOnce,1500));
-  if (document.readyState !== 'loading') setTimeout(runOnce,100);
+ const runOnce=()=>{if(hasRun)return;hasRun=true;console.log("⚡ Universio grids initializing");toggleGridsUnified();};
+ window.addEventListener("softr:pageLoaded",runOnce,{once:true});
+ /* Optional: also listen to Softr's other load event without removing yours */
+ window.addEventListener("@softr/page-content-loaded",runOnce,{once:true});
+ document.addEventListener("DOMContentLoaded",()=>setTimeout(runOnce,1500));
 })();
 
 // 7) ANALYTICS
