@@ -216,6 +216,7 @@ function rootsFor(t){const o=[];(t.selectors||[]).forEach(s=>o.push(...document.
 function bubbleize(h){if(!h||h.dataset.umBubbled==='1'||h.querySelector('.uni-bubble'))return;const t=(h.textContent||'').trim();if(!t)return;const s=document.createElement('span');s.className='uni-bubble tutor um-section um-fade-in';s.textContent=t;h.dataset.umBubbled='1';h.textContent='';h.appendChild(s);}
 function within(r,t){const hs=[...r.querySelectorAll('h1,h2,h3,h4')].filter(isVis);const h=hs.find(el=>t.test((el.textContent||'').trim()))||hs[0];if(h)bubbleize(h);}
 function run(){TARGETS.forEach(t=>{rootsFor(t).forEach(r=>within(r,t.textMatch));});}
+if(!window.__umBubbleizeSections) window.__umBubbleizeSections=run;
 (document.readyState!=='loading')?run():document.addEventListener('DOMContentLoaded',run);
 window.addEventListener('@softr/page-content-loaded',run);
 new MutationObserver(run).observe(document.getElementById('page-content')||document.body,{childList:true,subtree:true});
@@ -406,7 +407,7 @@ function toggleGridsUnified(){
   hideAll();
 
   // fail-safe: don't leave the page blank if Supabase is slow
-  const failSafe = setTimeout(()=>{
+  const gridFailSafeTimer = setTimeout(()=>{
     console.warn("⚠️ Grid state fetch timeout; showing starter grid");
     showFreshUser();
     console.groupEnd();
@@ -416,7 +417,7 @@ function toggleGridsUnified(){
     const u=window.logged_in_user||(window.Softr&&window.Softr.currentUser)||(window.__U&&window.__U.profile);
     const email=u?.email||u?.softr_user_email||null;
     console.debug("User context →",u);
-    if(!email){clearTimeout(failSafe);console.warn("⚠️ No user email found; aborting");showFreshUser();console.groupEnd();return;}
+    if(!email){clearTimeout(gridFailSafeTimer);console.warn("⚠️ No user email found; aborting");showFreshUser();console.groupEnd();return;}
 
     const fetcher=(typeof apiFetch==="function")?apiFetch:fetch;
 
@@ -482,16 +483,19 @@ function toggleGridsUnified(){
 
       if(!Object.values(states).some(Boolean)) states.grid1=true;
 
-      clearTimeout(failSafe);
+      clearTimeout(gridFailSafeTimer);
       applyStates(states);
 
       // Re-run bubbleization after showing grids
       window.dispatchEvent(new CustomEvent('@softr/page-content-loaded'));
+      if (typeof window.__umBubbleizeSections === 'function') {
+        window.__umBubbleizeSections();
+      }
 
       console.groupEnd();
     })
-    .catch(e=>{clearTimeout(failSafe);console.error("❌ Fetch failed:",e);showFreshUser();console.groupEnd();});
-  }catch(e){clearTimeout(failSafe);console.error("❌ toggleGridsUnified crashed:",e);showFreshUser();console.groupEnd();}
+    .catch(e=>{clearTimeout(gridFailSafeTimer);console.error("❌ Fetch failed:",e);showFreshUser();console.groupEnd();});
+  }catch(e){clearTimeout(gridFailSafeTimer);console.error("❌ toggleGridsUnified crashed:",e);showFreshUser();console.groupEnd();}
 }
 (function(){
  let hasRun=false;
