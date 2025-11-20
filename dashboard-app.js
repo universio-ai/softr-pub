@@ -396,26 +396,9 @@ function toggleGridsUnified(){
       const el=$(id);
       show(el,states[id]?mode:"none");
     });
-    // re-evaluate bubble host after visibility changes (if exposed)
-    if (typeof window.__umHelloRetry === "function") {
-      setTimeout(window.__umHelloRetry, 60);
-    }
-  };
-  window.__umReapplyGridStates = ()=>{
-    if(!__umLastGridStates) return;
-    applyStates(__umLastGridStates);
+    // Re-run bubble styling after layout settles so headers get wrapped
     const bubbleize = window.__umBubbleizeSections;
-    if (typeof bubbleize === 'function') {
-      requestAnimationFrame(()=>{ bubbleize(); });
-    }
-  };
-  window.__umReapplyGridStates = ()=>{
-    if(!__umLastGridStates) return;
-    applyStates(__umLastGridStates);
-    const bubbleize = window.__umBubbleizeSections;
-    if (typeof bubbleize === 'function') {
-      requestAnimationFrame(()=>{ bubbleize(); });
-    }
+    if (typeof bubbleize === 'function') requestAnimationFrame(()=>bubbleize());
   };
   const showFreshUser=()=>applyStates({grid1:true,grid2:false,grid3:false,grid4:false,grid5:false});
 
@@ -424,12 +407,12 @@ function toggleGridsUnified(){
   console.groupCollapsed("🔍 Universio Dashboard Debug");
   hideAll();
 
-  // fail-safe: don't leave the page blank if Supabase is slow
-  const gridFailSafeTimer = setTimeout(()=>{
+  // Prevent blanks: if fetch is slow, reveal starter view and bubbleize
+  const failSafe = setTimeout(()=>{
     console.warn("⚠️ Grid state fetch timeout; showing starter grid");
     showFreshUser();
-    console.groupEnd();
-  }, 1400);
+    window.dispatchEvent(new CustomEvent('@softr/page-content-loaded'));
+  },1400);
 
   try{
     const u=window.logged_in_user||(window.Softr&&window.Softr.currentUser)||(window.__U&&window.__U.profile);
@@ -467,7 +450,7 @@ function toggleGridsUnified(){
       return r.json();
     })
     .then(res=>{
-      settled=true; clearTimeout(failSafeId);
+      clearTimeout(failSafe);
       console.debug("Returned JSON →",res);
       const data = res.data || res; // accept either shape
       const error = res.error;
@@ -513,8 +496,8 @@ function toggleGridsUnified(){
 
       console.groupEnd();
     })
-    .catch(e=>{clearTimeout(gridFailSafeTimer);console.error("❌ Fetch failed:",e);showFreshUser();console.groupEnd();});
-  }catch(e){clearTimeout(gridFailSafeTimer);console.error("❌ toggleGridsUnified crashed:",e);showFreshUser();console.groupEnd();}
+    .catch(e=>{clearTimeout(failSafe);console.error("❌ Fetch failed:",e);showFreshUser();console.groupEnd();});
+  }catch(e){console.error("❌ toggleGridsUnified crashed:",e);showFreshUser();console.groupEnd();}
 }
 (function(){
  let hasRun=false;
