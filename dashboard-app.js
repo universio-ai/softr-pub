@@ -421,11 +421,35 @@ function toggleGridsUnified(){
 }
 (function(){
  let hasRun=false;
- const runOnce=()=>{if(hasRun)return;hasRun=true;console.log("⚡ Universio grids initializing");toggleGridsUnified();};
+ const userReady=()=>{
+   const u=window.logged_in_user||(window.Softr&&window.Softr.currentUser)||(window.__U&&window.__U.profile);
+   return !!(u && (u.email||u.softr_user_email));
+ };
+
+ const gridsReady=()=>['grid1','grid2','grid3','grid4','grid5'].some(id=>document.getElementById(id));
+
+ const waitForReady=(timeout=1400)=>new Promise(resolve=>{
+   const deadline=Date.now()+timeout;
+   (function loop(){
+     if(userReady() && gridsReady()) return resolve();
+     if(Date.now()>deadline) return resolve();
+     requestAnimationFrame(loop);
+   })();
+ });
+
+ const runOnce=()=>{
+   if(hasRun)return;
+   hasRun=true;
+   waitForReady().then(()=>{
+     console.log("⚡ Universio grids initializing");
+     toggleGridsUnified();
+   });
+ };
+
  window.addEventListener("softr:pageLoaded",runOnce,{once:true});
  /* Optional: also listen to Softr's other load event without removing yours */
  window.addEventListener("@softr/page-content-loaded",runOnce,{once:true});
- document.addEventListener("DOMContentLoaded",()=>setTimeout(runOnce,1500));
+ document.addEventListener("DOMContentLoaded",runOnce,{once:true});
 })();
 
 // 7) ANALYTICS
