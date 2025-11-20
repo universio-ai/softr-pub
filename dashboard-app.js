@@ -8,7 +8,7 @@
 //    • Grid visibility via Supabase
 //    • Analytics push
 //  ==========================================
-console.log("Nov 20 2025, 13:22 UTC");
+console.log("Nov 20 2025, 13:40 UTC");
 // 1) GRADIENT + RED SCRUB BASE
 (function injectBaseGradients(){
   const css = `
@@ -357,19 +357,23 @@ function toggleGridsUnified(){
 
   console.groupCollapsed("🔍 Universio Dashboard Debug");
 
+  let settled=false;
+  const settle=(fn)=>{ if(settled) return; settled=true; clearTimeout(fallbackTimer); fn?.(); };
+
+  const fallbackTimer=setTimeout(()=>{
+    settle(()=>{ console.warn("⏳ Grid state fallback applied (no cache + slow Supabase)"); showFreshUser(); console.groupEnd(); });
+  },1800);
+
   const cached=readCache();
   if(cached?.states){
-    console.debug("Applying cached grid states",cached);
-    applyStates(cached.states);
-  } else {
-    showFreshUser();
+    settle(()=>{ console.debug("Applying cached grid states",cached); applyStates(cached.states); console.groupEnd(); });
   }
 
   try{
     const u=window.logged_in_user||(window.Softr&&window.Softr.currentUser)||(window.__U&&window.__U.profile);
     const email=u?.email||u?.softr_user_email||null;
     console.debug("User context →",u);
-    if(!email){console.warn("⚠️ No user email found; aborting");showFreshUser();console.groupEnd();return;}
+    if(!email){console.warn("⚠️ No user email found; aborting");settle(()=>{showFreshUser();console.groupEnd();});return;}
 
     const fetcher=(typeof apiFetch==="function")?apiFetch:fetch;
     const headers=new Headers({"Content-Type":"application/json"});
@@ -388,7 +392,7 @@ function toggleGridsUnified(){
       console.debug("Returned JSON →",res);
       const data = res.data || res; // accept either shape
       const error = res.error;
-      if(error||!data){showFreshUser();console.groupEnd();return;}
+      if(error||!data){settle(()=>{showFreshUser();console.groupEnd();});return;}
 
       const inProgress        = Number(data.in_progress_count||0);
       const completed         = Number(data.completed_count||0); // legacy fallback
@@ -418,16 +422,18 @@ function toggleGridsUnified(){
 
       if(!Object.values(states).some(Boolean)) states.grid1=true;
 
-      applyStates(states);
-      writeCache(states);
+      settle(()=>{
+        applyStates(states);
+        writeCache(states);
 
-      // Re-run bubbleization after showing grids
-      window.dispatchEvent(new CustomEvent('@softr/page-content-loaded'));
+        // Re-run bubbleization after showing grids
+        window.dispatchEvent(new CustomEvent('@softr/page-content-loaded'));
 
-      console.groupEnd();
+        console.groupEnd();
+      });
     })
-    .catch(e=>{console.error("❌ Fetch failed:",e);showFreshUser();console.groupEnd();});
-  }catch(e){console.error("❌ toggleGridsUnified crashed:",e);showFreshUser();console.groupEnd();}
+    .catch(e=>{console.error("❌ Fetch failed:",e);settle(()=>{showFreshUser();console.groupEnd();});});
+  }catch(e){console.error("❌ toggleGridsUnified crashed:",e);settle(()=>{showFreshUser();console.groupEnd();});}
 }
 (function(){
  let hasRun=false;
