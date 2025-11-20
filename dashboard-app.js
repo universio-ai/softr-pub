@@ -8,7 +8,7 @@
 //    • Grid visibility via Supabase
 //    • Analytics push
 //  ==========================================
-console.log("Dec 16 2025, 04:00 UTC");
+console.log("Dec 16 2025, 05:30 UTC");
 // 1) GRADIENT + RED SCRUB BASE
 (function injectBaseGradients(){
   const css = `
@@ -343,22 +343,24 @@ function toggleGridsUnified(){
     applyStates(states);
   };
 
-  const applyFinal=(states,label)=>{
+  const applyFinal=(states,label,cache=true)=>{
     if(finalized) return;
     finalized=true;
     clearTimeout(fallbackTimer);
     clearTimeout(finalGuard);
     console.debug(label, states);
     applyStates(states);
-    writeCache(states);
+    if(cache) writeCache(states);
     end();
   };
 
   // If Supabase is slow, use a temporary fallback that remains overridable.
   // Cancelled the moment we finalize so it cannot overwrite real data.
-  const fallbackTimer=setTimeout(()=>{
-    applyTemp({grid1:true,grid2:false,grid3:false,grid4:false,grid5:false}, "⏳ Fallback applied (no cache + slow Supabase)");
-  },2200);
+  const fallbackTimer = (readCache()?.states)
+    ? null
+    : setTimeout(()=>{
+        applyTemp({grid1:true,grid2:false,grid3:false,grid4:false,grid5:false}, "⏳ Fallback applied (no cache + slow Supabase)");
+      },2200);
 
   // Safety guard: prefer cached states when available; never cache a forced fallback.
   const finalGuard=setTimeout(()=>{
@@ -403,8 +405,11 @@ function toggleGridsUnified(){
       resolveUserContext().then(ctx=>{
         if(finalized) return;
         if(!ctx){
-          applyTemp(showFreshUser(),`Final grid state (no email; attempt ${attempt}/${maxAttempts})`);
-          end();
+          if(cached?.states){
+            applyFinal(cached.states,`Final grid state (no email; using cache; attempt ${attempt}/${maxAttempts})`);
+          }else{
+            applyFinal(showFreshUser(),`Final grid state (no email; attempt ${attempt}/${maxAttempts})`,false);
+          }
           if(attempt<maxAttempts){
             setTimeout(()=>startUserResolution(attempt+1,maxAttempts),1200);
           }
@@ -429,7 +434,11 @@ function toggleGridsUnified(){
           console.debug("Returned JSON →",res);
           const data = res.data || res; // accept either shape
           const error = res.error;
-          if(error||!data){applyFinal(showFreshUser(),"Final grid state (error/empty response)");return;}
+          if(error||!data){
+            const fallbackStates=cached?.states||showFreshUser();
+            applyFinal(fallbackStates,"Final grid state (error/empty response)",!!cached?.states);
+            return;
+          }
 
           const inProgress        = Number(data.in_progress_count||0);
           const completed         = Number(data.completed_count||0); // legacy fallback
@@ -464,9 +473,17 @@ function toggleGridsUnified(){
           // Re-run bubbleization after showing grids
           window.dispatchEvent(new CustomEvent('@softr/page-content-loaded'));
         })
-        .catch(e=>{console.error("❌ Fetch failed:",e);applyFinal(showFreshUser(),"Final grid state (fetch failed)");});
+        .catch(e=>{
+          console.error("❌ Fetch failed:",e);
+          const fallbackStates=cached?.states||showFreshUser();
+          applyFinal(fallbackStates,"Final grid state (fetch failed)",!!cached?.states);
+        });
       });
-    }catch(e){console.error("❌ toggleGridsUnified crashed:",e);applyFinal(showFreshUser(),"Final grid state (crash)");}
+    }catch(e){
+      console.error("❌ toggleGridsUnified crashed:",e);
+      const fallbackStates=cached?.states||showFreshUser();
+      applyFinal(fallbackStates,"Final grid state (crash)",!!cached?.states);
+    }
   };
 
   startUserResolution();
