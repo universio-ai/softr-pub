@@ -393,6 +393,19 @@ window.addEventListener('load',boot,{once:true});
 function toggleGridsUnified(){
   const $=id=>document.getElementById(id);
 
+  const GRID_IDS = ["grid1","grid2","grid3","grid4","grid5"];
+  let lastStates = {grid1:false,grid2:false,grid3:false,grid4:false,grid5:false};
+  let reapplyQueued = false;
+
+  const queueReapply = () => {
+    if (reapplyQueued) return;
+    reapplyQueued = true;
+    setTimeout(() => {
+      reapplyQueued = false;
+      applyStates(lastStates);
+    }, 40);
+  };
+
   // Fallback guard: if the fetch never settles, unhide starter grid so the page
   // isn't stuck blank (which also blocks the hello bubble from ever appearing).
   // Give Supabase extra breathing room so we don't flash the sampler grid
@@ -425,6 +438,7 @@ function toggleGridsUnified(){
 
   const DISPLAY_MODE={grid1:"block",grid2:"flex",grid3:"flex",grid4:"flex",grid5:"flex"};
   const applyStates=states=>{
+    lastStates = states;
     Object.entries(DISPLAY_MODE).forEach(([id,mode])=>{
       const el=$(id);
       show(el,states[id]?mode:"none");
@@ -440,6 +454,14 @@ function toggleGridsUnified(){
 
   console.groupCollapsed("🔍 Universio Dashboard Debug");
   hideAll();
+
+  // Re-apply the last known visibility once Softr injects the grid nodes to avoid
+  // staying hidden when the initial applyStates ran before the DOM was ready.
+  const reapplyObserver = new MutationObserver(() => {
+    if (!GRID_IDS.every(id => $(id))) return; // wait until all nodes are present
+    queueReapply();
+  });
+  reapplyObserver.observe(document.getElementById('page-content')||document.body,{childList:true,subtree:true});
 
   try{
     const u=window.logged_in_user||(window.Softr&&window.Softr.currentUser)||(window.__U&&window.__U.profile);
