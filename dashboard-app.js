@@ -8,7 +8,7 @@
 //    • Grid visibility via Supabase
 //    • Analytics push
 //  ==========================================
-console.log("816am");
+console.log("Nov 20 2025, 13:22 UTC");
 // 1) GRADIENT + RED SCRUB BASE
 (function injectBaseGradients(){
   const css = `
@@ -327,6 +327,10 @@ window.addEventListener('load',boot,{once:true});
 function toggleGridsUnified(){
   const $=id=>document.getElementById(id);
 
+  const CACHE_KEY='um.dashboard.gridStates';
+  const readCache=()=>{try{return JSON.parse(sessionStorage.getItem(CACHE_KEY)||'null');}catch{return null;}};
+  const writeCache=states=>{try{sessionStorage.setItem(CACHE_KEY,JSON.stringify({states,ts:Date.now()}));}catch{}};
+
   /* ⬇️ EDITED: only the body of `show` changed */
   const show=(el,val)=>{
     if(!el) return;
@@ -351,10 +355,15 @@ function toggleGridsUnified(){
   };
   const showFreshUser=()=>applyStates({grid1:true,grid2:false,grid3:false,grid4:false,grid5:false});
 
-  const hideAll=()=>applyStates({grid1:false,grid2:false,grid3:false,grid4:false,grid5:false});
-
   console.groupCollapsed("🔍 Universio Dashboard Debug");
-  hideAll();
+
+  const cached=readCache();
+  if(cached?.states){
+    console.debug("Applying cached grid states",cached);
+    applyStates(cached.states);
+  } else {
+    showFreshUser();
+  }
 
   try{
     const u=window.logged_in_user||(window.Softr&&window.Softr.currentUser)||(window.__U&&window.__U.profile);
@@ -410,6 +419,7 @@ function toggleGridsUnified(){
       if(!Object.values(states).some(Boolean)) states.grid1=true;
 
       applyStates(states);
+      writeCache(states);
 
       // Re-run bubbleization after showing grids
       window.dispatchEvent(new CustomEvent('@softr/page-content-loaded'));
