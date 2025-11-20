@@ -8,7 +8,7 @@
 //    • Grid visibility via Supabase
 //    • Analytics push
 //  ==========================================
-console.log("Dec 16 2025, 05:30 UTC");
+console.log("Nov 20 2025, 14:16 UTC");
 // 1) GRADIENT + RED SCRUB BASE
 (function injectBaseGradients(){
   const css = `
@@ -519,6 +519,10 @@ function toggleGridsUnified(){
  /* Optional: also listen to Softr's other load event without removing yours */
  window.addEventListener("@softr/page-content-loaded",runOnce,{once:true});
  document.addEventListener("DOMContentLoaded",runOnce,{once:true});
+ // In case the events above fired before this script executed, run immediately.
+ if (document.readyState !== 'loading') {
+   setTimeout(runOnce, 0);
+ }
 })();
 
 // 7) ANALYTICS
