@@ -75,7 +75,7 @@ html,body{
   }
 })();
 
-// 🩵 UNIVERSIO DASHBOARD: Softr pre-hydration hard gate
+// 🩵 UNIVERSIO DASHBOARD: lightweight readiness nudge
 (function ensureSoftrUserReady(){
   const deadline = Date.now() + 900; // wait up to 0.9 s to cut startup delay
   const ready = () =>
@@ -83,44 +83,13 @@ html,body{
     window.Softr?.currentUser?.softr_user_email ||
     window.__U?.profile?.softr_user_email;
 
-  // 🧩 Hold Softr rendering until user context ready
-  const origAddEvent = window.addEventListener;
-  origAddEvent.call(window, "universio:bootstrapped", (e)=>{
-    const detail = e?.detail || {};
-    cachedEmail =
-      detail.profile?.softr_user_email ||
-      detail.profile?.email ||
-      cachedEmail;
-  });
-  window.addEventListener = function(type, listener, opts){
-    if (type === 'load' || type === 'softr:pageLoaded') {
-      // Delay only when the event actually fires; avoid eager waiting on registration
-      const gatedListener = (event)=>{
-        if (ready()) return listener.call(this, event);
-        const start = performance.now();
-        const limit = deadline();
-        const poll = ()=>{
-          if (ready() || performance.now() >= limit){
-            listener.call(this, event);
-            console.debug(`[BOOT PATCH] Softr ready after ${Math.round(performance.now()-start)} ms`);
-            return;
-          }
-          requestAnimationFrame(poll);
-        };
-        poll();
-      };
-
-      // If the event already fired, fall back to running the listener immediately
-      const alreadyLoaded = type === 'load' && document.readyState === 'complete';
-      if (alreadyLoaded) {
-        gatedListener(new Event('load'));
-      } else {
-        origAddEvent.call(window, type, gatedListener, opts);
-      }
-    } else {
-      origAddEvent.call(window, type, listener, opts);
-    }
-  };
+  // Instead of patching addEventListener (which can fight Softr),
+  // just log if context is late so downstream code can decide.
+  (async ()=>{
+    while(!ready() && Date.now() < deadline)
+      await new Promise(r=>setTimeout(r,80));
+    if(!ready()) console.warn('[BOOT] Softr user context not ready after 0.9s');
+  })();
 })();
 
 // Pre-hide grids immediately at parse and keep them hidden for late-added DOM
@@ -450,18 +419,34 @@ function toggleGridsUnified(){
     if(!email){clearTimeout(failSafe);console.warn("⚠️ No user email found; aborting");showFreshUser();console.groupEnd();return;}
 
     const fetcher=(typeof apiFetch==="function")?apiFetch:fetch;
+
+    const resolveCWT = async ()=>{
+      const deadline=Date.now()+900;
+      while(!window.__U?.cwt && Date.now()<deadline){
+        await new Promise(r=>setTimeout(r,80));
+      }
+      return window.__U?.cwt || null;
+    };
+
     const headers=new Headers({"Content-Type":"application/json"});
-    if(!headers.has("Authorization") && window.__U?.cwt){headers.set("Authorization",`Bearer ${window.__U.cwt}`);} 
     const init={method:"POST",headers,body:JSON.stringify({email})};
     const doFetch=async()=>{
+      const token=await resolveCWT();
+      if(token && !headers.has("Authorization")) headers.set("Authorization",`Bearer ${token}`);
       if(fetcher===fetch && typeof ensureFreshToken==="function"){
-        try{await ensureFreshToken();}catch(err){console.warn("[dashboard] token refresh skipped",err);} 
+        try{await ensureFreshToken();}catch(err){console.warn("[dashboard] token refresh skipped",err);}
       }
       return fetcher("https://oomcxsfikujptkfsqgzi.supabase.co/functions/v1/fetch-profiles",init);
     };
 
     doFetch()
-    .then(r=>r.json())
+    .then(async r=>{
+      if(!r.ok){
+        console.warn(`[dashboard] fetch-profiles ${r.status} (${r.statusText}); showing starter grid`);
+        throw new Error(`fetch-profiles ${r.status}`);
+      }
+      return r.json();
+    })
     .then(res=>{
       settled=true; clearTimeout(failSafeId);
       console.debug("Returned JSON →",res);
