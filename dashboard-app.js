@@ -8,7 +8,7 @@
 //    • Grid visibility via Supabase
 //    • Analytics push
 //  ==========================================
-
+console.log("816am");
 // 1) GRADIENT + RED SCRUB BASE
 (function injectBaseGradients(){
   const css = `
