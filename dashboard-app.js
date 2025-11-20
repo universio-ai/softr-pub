@@ -199,6 +199,9 @@ new MutationObserver(run).observe(document.getElementById('page-content')||docum
 (function(){
 'use strict';
 
+if(window.__umHelloBubbleInstalled) return;
+window.__umHelloBubbleInstalled = true;
+
 const GRID_IDS = ['grid1','grid2','grid3','grid4','grid5'];
 const SAFE_DELAY_MS = 80;            // small initial wait
 const MIN_VISIBLE_PX = 16;           // smaller threshold = more tolerant
