@@ -343,6 +343,26 @@ function toggleGridsUnified(){
     setTimeout(()=>scrim.remove(),160);
   };
 
+  // Release the loader as soon as a grid is visibly present, even if Supabase
+  // is still resolving in the background. This avoids the overlay lingering
+  // when cached states have already painted the cards.
+  let loaderReleased=false;
+  const isGridShowing=()=>{
+    return ['grid1','grid2','grid3','grid4','grid5'].some(id=>{
+      const el=$(id);
+      if(!el) return false;
+      const cs=getComputedStyle(el);
+      return cs.display!=='none' && cs.visibility!=='hidden' && +cs.opacity!==0;
+    });
+  };
+  const releaseLoader=label=>{
+    if(loaderReleased) return;
+    if(!isGridShowing()) return;
+    loaderReleased=true;
+    console.debug(label||'Releasing loader');
+    hideLoader();
+  };
+
   /* ⬇️ EDITED: only the body of `show` changed */
   const show=(el,val)=>{
     if(!el) return;
@@ -359,19 +379,22 @@ function toggleGridsUnified(){
   };
 
   const DISPLAY_MODE={grid1:"block",grid2:"flex",grid3:"flex",grid4:"flex",grid5:"flex"};
-  const applyStates=states=>{
+  const applyStates=(states,label)=>{
     Object.entries(DISPLAY_MODE).forEach(([id,mode])=>{
       const el=$(id);
       show(el,states[id]?mode:"none");
     });
+    // Give the DOM a beat to paint, then drop the loader if something is visible
+    // so users are never waiting on background confirmations.
+    setTimeout(()=>releaseLoader(label||'Grids painted'),90);
   };
   const showFreshUser=()=>{
     const states={grid1:true,grid2:false,grid3:false,grid4:false,grid5:false};
-    applyStates(states);
+    applyStates(states,"Fresh-user grids applied");
     return states;
   };
 
-  // Keep loader up-front; it will be dismissed only when we finalize a state
+  // Keep loader up-front; it will be dismissed once a visible grid exists
   showLoader();
 
   console.groupCollapsed("🔍 Universio Dashboard Debug");
@@ -382,7 +405,7 @@ function toggleGridsUnified(){
   // Temporary apply that still allows Supabase to override (keeps grids responsive on slow mobile)
   const applyTemp=(states,label)=>{
     console.debug(label, states);
-    applyStates(states);
+    applyStates(states,label);
   };
 
   const applyFinal=(states,label,cache=true)=>{
@@ -391,9 +414,10 @@ function toggleGridsUnified(){
     clearTimeout(fallbackTimer);
     clearTimeout(finalGuard);
     console.debug(label, states);
-    applyStates(states);
+    applyStates(states,label);
     if(cache) writeCache(states);
-    hideLoader();
+    // Ensure the loader is gone even if visibility checks fail (e.g., all grids hidden)
+    setTimeout(hideLoader,220);
     end();
   };
 
