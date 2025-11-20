@@ -8,7 +8,7 @@
 //    • Grid visibility via Supabase
 //    • Analytics push
 //  ==========================================
-
+console.log("Nov 20 2025, 14:16 UTC");
 // 1) GRADIENT + RED SCRUB BASE
 (function injectBaseGradients(){
   const css = `
@@ -73,33 +73,6 @@ html,body{
     style.textContent = css;
     document.head.appendChild(style);
   }
-})();
-
-// 🩵 UNIVERSIO DASHBOARD: Softr pre-hydration hard gate
-(function ensureSoftrUserReady(){
-  const deadline = Date.now() + 1500; // wait up to 1.5 s
-  const ready = () =>
-    window.logged_in_user?.softr_user_email ||
-    window.Softr?.currentUser?.softr_user_email ||
-    window.__U?.profile?.softr_user_email;
-
-  // 🧩 Hold Softr rendering until user context ready
-  const origAddEvent = window.addEventListener;
-  window.addEventListener = function(type, listener, opts){
-    // intercept Softr’s self-init events
-    if (type === 'load' || type === 'softr:pageLoaded') {
-      const wait = async ()=>{
-        const start = Date.now();
-        while(!ready() && Date.now() < deadline)
-          await new Promise(r=>setTimeout(r,80));
-        listener();
-        console.debug(`[BOOT PATCH] Softr ready after ${Date.now()-start} ms`);
-      };
-      wait();
-    } else {
-      origAddEvent.call(window, type, listener, opts);
-    }
-  };
 })();
 
 // Pre-hide grids immediately at parse to kill any flash
@@ -339,13 +312,13 @@ function toggleGridsUnified(){
     const style=document.createElement('style');
     style.id=LOADER_STYLE_ID;
     style.textContent=`
-  #${LOADER_ID}{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:9999;background:linear-gradient(180deg,rgba(248,249,252,.96) 0%,rgba(238,241,247,.94) 100%);backdrop-filter:blur(4px);transition:opacity .25s ease;}
-  #${LOADER_ID}[data-hidden="1"]{opacity:0;pointer-events:none;}
-  #${LOADER_ID} .um-grid-loader{display:inline-flex;gap:9px;align-items:center;justify-content:center;padding:14px 18px;border-radius:16px;background:rgba(255,255,255,.88);box-shadow:0 12px 32px rgba(15,18,34,.12),0 2px 10px rgba(15,18,34,.06);}
-  #${LOADER_ID} .um-grid-loader span{width:12px;height:12px;border-radius:999px;background:#0F1222;opacity:.28;animation:umGridDot 1s ease-in-out infinite;box-shadow:0 2px 6px rgba(15,18,34,.16);}
-  #${LOADER_ID} .um-grid-loader span:nth-child(2){animation-delay:.1s;}
-  #${LOADER_ID} .um-grid-loader span:nth-child(3){animation-delay:.2s;}
-  @keyframes umGridDot{0%,80%,100%{transform:scale(.72);opacity:.24;}40%{transform:scale(1);opacity:1;}}
+#${LOADER_ID}{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:9999;background:rgba(255,255,255,.92);backdrop-filter:blur(3px);transition:opacity .25s ease;}
+#${LOADER_ID}[data-hidden="1"]{opacity:0;pointer-events:none;}
+#${LOADER_ID} .um-grid-loader{display:inline-flex;gap:8px;align-items:center;justify-content:center;}
+#${LOADER_ID} .um-grid-loader span{width:10px;height:10px;border-radius:999px;background:#0f1222;opacity:.3;animation:umGridDot 1s ease-in-out infinite;}
+#${LOADER_ID} .um-grid-loader span:nth-child(2){animation-delay:.1s;}
+#${LOADER_ID} .um-grid-loader span:nth-child(3){animation-delay:.2s;}
+@keyframes umGridDot{0%,80%,100%{transform:scale(.6);opacity:.25;}40%{transform:scale(1);opacity:1;}}
     `;
     document.head.appendChild(style);
   };
@@ -391,83 +364,207 @@ function toggleGridsUnified(){
       show(el,states[id]?mode:"none");
     });
   };
-  const showFreshUser=()=>applyStates({grid1:true,grid2:false,grid3:false,grid4:false,grid5:false});
+  const showFreshUser=()=>{
+    const states={grid1:true,grid2:false,grid3:false,grid4:false,grid5:false};
+    applyStates(states);
+    return states;
+  };
 
-  const hideAll=()=>applyStates({grid1:false,grid2:false,grid3:false,grid4:false,grid5:false});
+  // Keep loader up-front; it will be dismissed only when we finalize a state
+  showLoader();
 
   console.groupCollapsed("🔍 Universio Dashboard Debug");
-  hideAll();
 
-  try{
-    const u=window.logged_in_user||(window.Softr&&window.Softr.currentUser)||(window.__U&&window.__U.profile);
-    const email=u?.email||u?.softr_user_email||null;
-    console.debug("User context →",u);
-    if(!email){console.warn("⚠️ No user email found; aborting");showFreshUser();console.groupEnd();return;}
+  let finalized=false, closed=false;
+  const end=()=>{ if(!closed){ console.groupEnd(); closed=true; } };
 
-    const fetcher=(typeof apiFetch==="function")?apiFetch:fetch;
-    const headers=new Headers({"Content-Type":"application/json"});
-    if(!headers.has("Authorization") && window.__U?.cwt){headers.set("Authorization",`Bearer ${window.__U.cwt}`);} 
-    const init={method:"POST",headers,body:JSON.stringify({email})};
-    const doFetch=async()=>{
-      if(fetcher===fetch && typeof ensureFreshToken==="function"){
-        try{await ensureFreshToken();}catch(err){console.warn("[dashboard] token refresh skipped",err);} 
+  // Temporary apply that still allows Supabase to override (keeps grids responsive on slow mobile)
+  const applyTemp=(states,label)=>{
+    console.debug(label, states);
+    applyStates(states);
+  };
+
+  const applyFinal=(states,label,cache=true)=>{
+    if(finalized) return;
+    finalized=true;
+    clearTimeout(fallbackTimer);
+    clearTimeout(finalGuard);
+    console.debug(label, states);
+    applyStates(states);
+    if(cache) writeCache(states);
+    hideLoader();
+    end();
+  };
+
+  // If Supabase is slow, use a temporary fallback that remains overridable.
+  // Cancelled the moment we finalize so it cannot overwrite real data.
+  const fallbackTimer = (readCache()?.states)
+    ? null
+    : setTimeout(()=>{
+        console.debug("⏳ Still waiting on Supabase; keeping loader active and grids hidden");
+      },2200);
+
+  // Safety guard: prefer cached states when available; never cache a forced fallback.
+  const finalGuard=setTimeout(()=>{
+    if(finalized) return;
+    const cached=readCache();
+    if(cached?.states){
+      applyFinal(cached.states,"Final grid state (cached timeout)");
+      return;
+    }
+    applyFinal(showFreshUser(),"Final grid state (timeout; not cached)",false);
+  },12000);
+
+  const cached=readCache();
+  if(cached?.states){
+    applyTemp(cached.states, "Applying cached grid states");
+  }
+
+  const resolveUserContext = (timeoutMs=12000)=>new Promise(resolve=>{
+    const start=Date.now();
+    (function loop(){
+      const u=
+        window.logged_in_user||
+        (window.Softr&&window.Softr.currentUser)||
+        (window.__U&&window.__U.profile)||
+        window.user||
+        window.__USER;
+      const email=u?.email||u?.softr_user_email||u?.primary_email||null;
+      if(email){
+        console.debug("User context →",u);
+        return resolve({u,email});
       }
-      return fetcher("https://oomcxsfikujptkfsqgzi.supabase.co/functions/v1/fetch-profiles",init);
-    };
+      if(Date.now()-start>=timeoutMs){
+        console.warn("⚠️ No user email resolved within",timeoutMs,"ms");
+        return resolve(null);
+      }
+      setTimeout(loop,120);
+    })();
+  });
 
-    doFetch()
-    .then(r=>r.json())
-    .then(res=>{
-      console.debug("Returned JSON →",res);
-      const data = res.data || res; // accept either shape
-      const error = res.error;
-      if(error||!data){showFreshUser();console.groupEnd();return;}
+  const startUserResolution = (attempt=1, maxAttempts=3)=>{
+    try{
+      resolveUserContext().then(ctx=>{
+        if(finalized) return;
+        if(!ctx){
+          if(cached?.states){
+            applyFinal(cached.states,`Final grid state (no email; using cache; attempt ${attempt}/${maxAttempts})`);
+          }else{
+            applyFinal(showFreshUser(),`Final grid state (no email; attempt ${attempt}/${maxAttempts})`,false);
+          }
+          if(attempt<maxAttempts){
+            setTimeout(()=>startUserResolution(attempt+1,maxAttempts),1200);
+          }
+          return;
+        }
+        const {email} = ctx;
 
-      const inProgress        = Number(data.in_progress_count||0);
-      const completed         = Number(data.completed_count||0); // legacy fallback
-      const certCount         = Number(data.User_CertificateEnrollments||0);
-      const completedNodes    = Number(data.completed_node_count||0);
+        const fetcher=(typeof apiFetch==="function")?apiFetch:fetch;
+        const headers=new Headers({"Content-Type":"application/json"});
+        if(!headers.has("Authorization") && window.__U?.cwt){headers.set("Authorization",`Bearer ${window.__U.cwt}`);} 
+        const init={method:"POST",headers,body:JSON.stringify({email})};
+        const doFetch=async()=>{
+          if(fetcher===fetch && typeof ensureFreshToken==="function"){
+            try{await ensureFreshToken();}catch(err){console.warn("[dashboard] token refresh skipped",err);} 
+          }
+          return fetcher("https://oomcxsfikujptkfsqgzi.supabase.co/functions/v1/fetch-profiles",init);
+        };
 
-      // NEW: status-based completion from User_CertificateEnrollment
-      // (Edge function should return has_completed_cert and/or completed_cert_count)
-      const hasCompletedCert =
-        !!(data.has_completed_cert) ||
-        Number(data.completed_cert_count || 0) > 0;
+        doFetch()
+        .then(r=>r.json())
+        .then(res=>{
+          console.debug("Returned JSON →",res);
+          const data = res.data || res; // accept either shape
+          const error = res.error;
+          if(error||!data){
+            const fallbackStates=cached?.states||showFreshUser();
+            applyFinal(fallbackStates,"Final grid state (error/empty response)",!!cached?.states);
+            return;
+          }
 
-      const hasCompletedNode =
-        !!(data.has_completed_node) ||
-        completedNodes > 0;
+          const inProgress        = Number(data.in_progress_count||0);
+          const completed         = Number(data.completed_count||0); // legacy fallback
+          const certCount         = Number(data.User_CertificateEnrollments||0);
+          const completedNodes    = Number(data.completed_node_count||0);
 
-      const states={
-        grid1: inProgress === 0,
-        grid2: inProgress >= 1,
-        // REPLACE old rule:
-        // if (completed >= 1) show($("grid3"), "flex");
-        // WITH status-based rule + safe fallback:
-        grid3: (hasCompletedCert || completed >= 1),
-        grid4: certCount >= 1,
-        grid5: hasCompletedNode
-      };
+          // NEW: status-based completion from User_CertificateEnrollment
+          // (Edge function should return has_completed_cert and/or completed_cert_count)
+          const hasCompletedCert =
+            !!(data.has_completed_cert) ||
+            Number(data.completed_cert_count || 0) > 0;
 
-      if(!Object.values(states).some(Boolean)) states.grid1=true;
+          const hasCompletedNode =
+            !!(data.has_completed_node) ||
+            completedNodes > 0;
 
-      applyStates(states);
+          const states={
+            grid1: inProgress === 0,
+            grid2: inProgress >= 1,
+            // REPLACE old rule:
+            // if (completed >= 1) show($("grid3"), "flex");
+            // WITH status-based rule + safe fallback:
+            grid3: (hasCompletedCert || completed >= 1),
+            grid4: certCount >= 1,
+            grid5: hasCompletedNode
+          };
 
-      // Re-run bubbleization after showing grids
-      window.dispatchEvent(new CustomEvent('@softr/page-content-loaded'));
+          if(!Object.values(states).some(Boolean)) states.grid1=true;
 
-      console.groupEnd();
-    })
-    .catch(e=>{console.error("❌ Fetch failed:",e);showFreshUser();console.groupEnd();});
-  }catch(e){console.error("❌ toggleGridsUnified crashed:",e);showFreshUser();console.groupEnd();}
+          applyFinal(states,"Final grid state (Supabase)");
+
+          // Re-run bubbleization after showing grids
+          window.dispatchEvent(new CustomEvent('@softr/page-content-loaded'));
+        })
+        .catch(e=>{
+          console.error("❌ Fetch failed:",e);
+          const fallbackStates=cached?.states||showFreshUser();
+          applyFinal(fallbackStates,"Final grid state (fetch failed)",!!cached?.states);
+        });
+      });
+    }catch(e){
+      console.error("❌ toggleGridsUnified crashed:",e);
+      const fallbackStates=cached?.states||showFreshUser();
+      applyFinal(fallbackStates,"Final grid state (crash)",!!cached?.states);
+    }
+  };
+
+  startUserResolution();
 }
 (function(){
  let hasRun=false;
- const runOnce=()=>{if(hasRun)return;hasRun=true;console.log("⚡ Universio grids initializing");toggleGridsUnified();};
+ const userReady=()=>{
+   const u=window.logged_in_user||(window.Softr&&window.Softr.currentUser)||(window.__U&&window.__U.profile);
+   return !!(u && (u.email||u.softr_user_email));
+ };
+
+ const gridsReady=()=>['grid1','grid2','grid3','grid4','grid5'].some(id=>document.getElementById(id));
+
+  const waitForReady=(timeout=1400)=>new Promise(resolve=>{
+   const deadline=Date.now()+timeout;
+   (function loop(){
+     if(userReady() && gridsReady()) return resolve();
+     if(Date.now()>deadline) return resolve();
+     requestAnimationFrame(loop);
+   })();
+ });
+
+ const runOnce=()=>{
+   if(hasRun)return;
+   hasRun=true;
+   waitForReady().then(()=>{
+     console.log("⚡ Universio grids initializing");
+     toggleGridsUnified();
+   });
+ };
+
  window.addEventListener("softr:pageLoaded",runOnce,{once:true});
  /* Optional: also listen to Softr's other load event without removing yours */
  window.addEventListener("@softr/page-content-loaded",runOnce,{once:true});
- document.addEventListener("DOMContentLoaded",()=>setTimeout(runOnce,1500));
+ document.addEventListener("DOMContentLoaded",runOnce,{once:true});
+ // In case the events above fired before this script executed, run immediately.
+ if (document.readyState !== 'loading') {
+   setTimeout(runOnce, 0);
+ }
 })();
 
 // 7) ANALYTICS
