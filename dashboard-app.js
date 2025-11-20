@@ -337,7 +337,18 @@ function refresh(){
   if(g!==host){ placeHello(g); }
 }
 function tryUntilVisible(){
-  refresh();
+  const grid = topGrid();
+
+  // If no grid is currently visible, keep waiting quietly without incrementing
+  // the retry counter—this prevents noisy warnings while visibility states load.
+  if(!grid){
+    retryCount = 0;
+    setTimeout(tryUntilVisible, 140);
+    return;
+  }
+
+  placeHello(grid);
+
   const bubble=hello;
   const ok=bubble && bubble.offsetParent!==null && bubble.offsetHeight>0;
   if(ok || retryCount>=maxRetries){
@@ -345,7 +356,7 @@ function tryUntilVisible(){
     return;
   }
   retryCount++;
-  setTimeout(tryUntilVisible, 250);
+  setTimeout(tryUntilVisible, 220);
 }
 // Expose a safe, debounced retrier so grid logic can re-trigger the hello bubble
 // without depending on closure scope internals.
@@ -360,7 +371,7 @@ function boot(){
     window.addEventListener('scroll',refresh,{passive:true});
     window.addEventListener('resize',refresh,{passive:true});
     // re-inject after Softr refreshes or your gating reruns
-    window.addEventListener('@softr/page-content-loaded',()=>{setTimeout(tryUntilVisible,200);});
+    window.addEventListener('@softr/page-content-loaded',()=>{setTimeout(tryUntilVisible,160);});
   },SAFE_DELAY_MS);
 }
 
@@ -386,7 +397,7 @@ function toggleGridsUnified(){
     // allow bubbles to re-run once something is on-screen
     window.dispatchEvent(new CustomEvent('@softr/page-content-loaded'));
   };
-  const failSafeId=setTimeout(failSafe,6000);
+  const failSafeId=setTimeout(failSafe,3500);
 
   /* ⬇️ EDITED: only the body of `show` changed */
   const show=(el,val)=>{
