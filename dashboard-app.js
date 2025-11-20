@@ -327,6 +327,48 @@ window.addEventListener('load',boot,{once:true});
 function toggleGridsUnified(){
   const $=id=>document.getElementById(id);
 
+  const CACHE_KEY='um.dashboard.gridStates';
+  const readCache=()=>{try{return JSON.parse(sessionStorage.getItem(CACHE_KEY)||'null');}catch{return null;}};
+  const writeCache=states=>{try{sessionStorage.setItem(CACHE_KEY,JSON.stringify({states,ts:Date.now()}));}catch{}};
+
+  // Keep the opening loader around until we have a final decision
+  const LOADER_ID='um-grid-loading';
+  const LOADER_STYLE_ID='um-grid-loading-style';
+  const ensureLoaderStyle=()=>{
+    if(document.getElementById(LOADER_STYLE_ID)) return;
+    const style=document.createElement('style');
+    style.id=LOADER_STYLE_ID;
+    style.textContent=`
+  #${LOADER_ID}{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:9999;background:linear-gradient(180deg,rgba(248,249,252,.96) 0%,rgba(238,241,247,.94) 100%);backdrop-filter:blur(4px);transition:opacity .25s ease;}
+  #${LOADER_ID}[data-hidden="1"]{opacity:0;pointer-events:none;}
+  #${LOADER_ID} .um-grid-loader{display:inline-flex;gap:9px;align-items:center;justify-content:center;padding:14px 18px;border-radius:16px;background:rgba(255,255,255,.88);box-shadow:0 12px 32px rgba(15,18,34,.12),0 2px 10px rgba(15,18,34,.06);}
+  #${LOADER_ID} .um-grid-loader span{width:12px;height:12px;border-radius:999px;background:#0F1222;opacity:.28;animation:umGridDot 1s ease-in-out infinite;box-shadow:0 2px 6px rgba(15,18,34,.16);}
+  #${LOADER_ID} .um-grid-loader span:nth-child(2){animation-delay:.1s;}
+  #${LOADER_ID} .um-grid-loader span:nth-child(3){animation-delay:.2s;}
+  @keyframes umGridDot{0%,80%,100%{transform:scale(.72);opacity:.24;}40%{transform:scale(1);opacity:1;}}
+    `;
+    document.head.appendChild(style);
+  };
+  const showLoader=()=>{
+    ensureLoaderStyle();
+    let scrim=document.getElementById(LOADER_ID);
+    if(!scrim){
+      scrim=document.createElement('div');
+      scrim.id=LOADER_ID;
+      scrim.setAttribute('role','status');
+      scrim.setAttribute('aria-live','polite');
+      scrim.innerHTML='<div class="um-grid-loader" aria-label="Loading your dashboard"><span></span><span></span><span></span></div>';
+      document.body.appendChild(scrim);
+    }
+    scrim.dataset.hidden='0';
+  };
+  const hideLoader=()=>{
+    const scrim=document.getElementById(LOADER_ID);
+    if(!scrim) return;
+    scrim.dataset.hidden='1';
+    setTimeout(()=>scrim.remove(),260);
+  };
+
   /* ⬇️ EDITED: only the body of `show` changed */
   const show=(el,val)=>{
     if(!el) return;
