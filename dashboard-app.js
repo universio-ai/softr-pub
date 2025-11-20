@@ -347,6 +347,12 @@ function tryUntilVisible(){
   retryCount++;
   setTimeout(tryUntilVisible, 250);
 }
+// Expose a safe, debounced retrier so grid logic can re-trigger the hello bubble
+// without depending on closure scope internals.
+window.__umHelloRetry = () => {
+  retryCount = 0;
+  tryUntilVisible();
+};
 function boot(){
   setTimeout(()=>{
     refresh();
@@ -401,9 +407,10 @@ function toggleGridsUnified(){
       const el=$(id);
       show(el,states[id]?mode:"none");
     });
-    // re-evaluate bubble host after visibility changes
-    retryCount = 0;
-    setTimeout(tryUntilVisible, 60);
+    // re-evaluate bubble host after visibility changes (if exposed)
+    if (typeof window.__umHelloRetry === "function") {
+      setTimeout(window.__umHelloRetry, 60);
+    }
   };
   const showFreshUser=()=>applyStates({grid1:true,grid2:false,grid3:false,grid4:false,grid5:false});
 
