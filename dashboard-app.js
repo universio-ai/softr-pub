@@ -316,8 +316,9 @@ function toggleGridsUnified(){
 #${LOADER_ID}[data-hidden="1"]{opacity:0;pointer-events:none;}
 #${LOADER_ID} .um-grid-loader{display:inline-flex;gap:8px;align-items:center;justify-content:center;}
 #${LOADER_ID} .um-grid-loader span{width:12px;height:12px;border-radius:999px;background:#7B61FF!important;opacity:.28;animation:umGridDot 1s ease-in-out infinite;box-shadow:0 2px 6px rgba(123,97,255,.3);}
-#${LOADER_ID} .um-grid-loader span:nth-child(2){animation-delay:.1s;}
-#${LOADER_ID} .um-grid-loader span:nth-child(3){animation-delay:.2s;}
+#${LOADER_ID} .um-grid-loader span:nth-child(1){animation-delay:-.2s;}
+#${LOADER_ID} .um-grid-loader span:nth-child(2){animation-delay:-.1s;}
+#${LOADER_ID} .um-grid-loader span:nth-child(3){animation-delay:0s;}
 @keyframes umGridDot{0%,80%,100%{transform:scale(.6);opacity:.25;}40%{transform:scale(1);opacity:1;}}
     `;
     document.head.appendChild(style);
