@@ -304,6 +304,44 @@ function toggleGridsUnified(){
   const readCache=()=>{try{return JSON.parse(sessionStorage.getItem(CACHE_KEY)||'null');}catch{return null;}};
   const writeCache=states=>{try{sessionStorage.setItem(CACHE_KEY,JSON.stringify({states,ts:Date.now()}));}catch{}};
 
+  // Keep the opening loader around until we have a final decision
+  const LOADER_ID='um-grid-loading';
+  const LOADER_STYLE_ID='um-grid-loading-style';
+  const ensureLoaderStyle=()=>{
+    if(document.getElementById(LOADER_STYLE_ID)) return;
+    const style=document.createElement('style');
+    style.id=LOADER_STYLE_ID;
+    style.textContent=`
+#${LOADER_ID}{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:9999;background:rgba(255,255,255,.92);backdrop-filter:blur(3px);transition:opacity .25s ease;}
+#${LOADER_ID}[data-hidden="1"]{opacity:0;pointer-events:none;}
+#${LOADER_ID} .um-grid-loader{display:inline-flex;gap:8px;align-items:center;justify-content:center;}
+#${LOADER_ID} .um-grid-loader span{width:10px;height:10px;border-radius:999px;background:#0f1222;opacity:.3;animation:umGridDot 1s ease-in-out infinite;}
+#${LOADER_ID} .um-grid-loader span:nth-child(2){animation-delay:.1s;}
+#${LOADER_ID} .um-grid-loader span:nth-child(3){animation-delay:.2s;}
+@keyframes umGridDot{0%,80%,100%{transform:scale(.6);opacity:.25;}40%{transform:scale(1);opacity:1;}}
+    `;
+    document.head.appendChild(style);
+  };
+  const showLoader=()=>{
+    ensureLoaderStyle();
+    let scrim=document.getElementById(LOADER_ID);
+    if(!scrim){
+      scrim=document.createElement('div');
+      scrim.id=LOADER_ID;
+      scrim.setAttribute('role','status');
+      scrim.setAttribute('aria-live','polite');
+      scrim.innerHTML='<div class="um-grid-loader" aria-label="Loading your dashboard"><span></span><span></span><span></span></div>';
+      document.body.appendChild(scrim);
+    }
+    scrim.dataset.hidden='0';
+  };
+  const hideLoader=()=>{
+    const scrim=document.getElementById(LOADER_ID);
+    if(!scrim) return;
+    scrim.dataset.hidden='1';
+    setTimeout(()=>scrim.remove(),260);
+  };
+
   /* ⬇️ EDITED: only the body of `show` changed */
   const show=(el,val)=>{
     if(!el) return;
@@ -332,6 +370,9 @@ function toggleGridsUnified(){
     return states;
   };
 
+  // Keep loader up-front; it will be dismissed only when we finalize a state
+  showLoader();
+
   console.groupCollapsed("🔍 Universio Dashboard Debug");
 
   let finalized=false, closed=false;
@@ -351,6 +392,7 @@ function toggleGridsUnified(){
     console.debug(label, states);
     applyStates(states);
     if(cache) writeCache(states);
+    hideLoader();
     end();
   };
 
@@ -359,7 +401,7 @@ function toggleGridsUnified(){
   const fallbackTimer = (readCache()?.states)
     ? null
     : setTimeout(()=>{
-        applyTemp({grid1:true,grid2:false,grid3:false,grid4:false,grid5:false}, "⏳ Fallback applied (no cache + slow Supabase)");
+        console.debug("⏳ Still waiting on Supabase; keeping loader active and grids hidden");
       },2200);
 
   // Safety guard: prefer cached states when available; never cache a forced fallback.
@@ -370,7 +412,7 @@ function toggleGridsUnified(){
       applyFinal(cached.states,"Final grid state (cached timeout)");
       return;
     }
-    applyTemp(showFreshUser(),"⏳ Timeout fallback (not cached)");
+    applyFinal(showFreshUser(),"Final grid state (timeout; not cached)",false);
   },12000);
 
   const cached=readCache();
