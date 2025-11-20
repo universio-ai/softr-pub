@@ -142,8 +142,17 @@ html,body{
   };
 })();
 
-// Pre-hide grids immediately at parse to kill any flash
+// Pre-hide grids immediately at parse and keep them hidden for late-added DOM
+// nodes so we never flash grid1 before visibility logic applies.
 (function preHide(){
+  const css=`#grid1,#grid2,#grid3,#grid4,#grid5{display:none!important;visibility:hidden!important;opacity:0!important;}`;
+  if(!document.getElementById('um-grid-prehide')){
+    const style=document.createElement('style');
+    style.id='um-grid-prehide';
+    style.textContent=css;
+    document.head.appendChild(style);
+  }
+
   ["grid1","grid2","grid3","grid4","grid5"].forEach(id=>{
     const el=document.getElementById(id);
     if(!el) return;
