@@ -77,7 +77,7 @@ html,body{
 
 // 🩵 UNIVERSIO DASHBOARD: Softr pre-hydration hard gate
 (function ensureSoftrUserReady(){
-  const deadline = Date.now() + 1500; // wait up to 1.5 s
+  const deadline = () => performance.now() + 1500; // wait up to 1.5 s
   const ready = () =>
     window.logged_in_user?.softr_user_email ||
     window.Softr?.currentUser?.softr_user_email ||
@@ -86,16 +86,30 @@ html,body{
   // 🧩 Hold Softr rendering until user context ready
   const origAddEvent = window.addEventListener;
   window.addEventListener = function(type, listener, opts){
-    // intercept Softr’s self-init events
     if (type === 'load' || type === 'softr:pageLoaded') {
-      const wait = async ()=>{
-        const start = Date.now();
-        while(!ready() && Date.now() < deadline)
-          await new Promise(r=>setTimeout(r,80));
-        listener();
-        console.debug(`[BOOT PATCH] Softr ready after ${Date.now()-start} ms`);
+      // Delay only when the event actually fires; avoid eager waiting on registration
+      const gatedListener = (event)=>{
+        if (ready()) return listener.call(this, event);
+        const start = performance.now();
+        const limit = deadline();
+        const poll = ()=>{
+          if (ready() || performance.now() >= limit){
+            listener.call(this, event);
+            console.debug(`[BOOT PATCH] Softr ready after ${Math.round(performance.now()-start)} ms`);
+            return;
+          }
+          requestAnimationFrame(poll);
+        };
+        poll();
       };
-      wait();
+
+      // If the event already fired, fall back to running the listener immediately
+      const alreadyLoaded = type === 'load' && document.readyState === 'complete';
+      if (alreadyLoaded) {
+        gatedListener(new Event('load'));
+      } else {
+        origAddEvent.call(window, type, gatedListener, opts);
+      }
     } else {
       origAddEvent.call(window, type, listener, opts);
     }
