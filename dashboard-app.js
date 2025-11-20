@@ -77,14 +77,40 @@ html,body{
 
 // 🩵 UNIVERSIO DASHBOARD: Softr pre-hydration hard gate
 (function ensureSoftrUserReady(){
-  const deadline = () => performance.now() + 1500; // wait up to 1.5 s
-  const ready = () =>
-    window.logged_in_user?.softr_user_email ||
-    window.Softr?.currentUser?.softr_user_email ||
-    window.__U?.profile?.softr_user_email;
+  const deadline = () => performance.now() + 800; // wait up to 0.8 s
+  let cachedEmail = null;
+
+  const fromSession = () => {
+    if (cachedEmail) return cachedEmail;
+    try {
+      const stored = sessionStorage.getItem("universio:profile");
+      const parsed = stored ? JSON.parse(stored) : null;
+      cachedEmail = parsed?.softr_user_email || parsed?.email || null;
+    } catch (e) {}
+    return cachedEmail;
+  };
+
+  const ready = () => {
+    const email =
+      window.logged_in_user?.softr_user_email ||
+      window.logged_in_user?.email ||
+      window.Softr?.currentUser?.softr_user_email ||
+      window.__U?.profile?.softr_user_email ||
+      window.__U?.profile?.email ||
+      fromSession();
+    if (email) cachedEmail = email;
+    return email;
+  };
 
   // 🧩 Hold Softr rendering until user context ready
   const origAddEvent = window.addEventListener;
+  origAddEvent.call(window, "universio:bootstrapped", (e)=>{
+    const detail = e?.detail || {};
+    cachedEmail =
+      detail.profile?.softr_user_email ||
+      detail.profile?.email ||
+      cachedEmail;
+  });
   window.addEventListener = function(type, listener, opts){
     if (type === 'load' || type === 'softr:pageLoaded') {
       // Delay only when the event actually fires; avoid eager waiting on registration
