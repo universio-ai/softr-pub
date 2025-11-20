@@ -8,7 +8,7 @@
 //    • Grid visibility via Supabase
 //    • Analytics push
 //  ==========================================
-console.log("Dec 16 2025, 02:35 UTC");
+console.log("Dec 16 2025, 03:12 UTC");
 // 1) GRADIENT + RED SCRUB BASE
 (function injectBaseGradients(){
   const css = `
@@ -374,6 +374,7 @@ function toggleGridsUnified(){
     if(finalized) return;
     finalized=true;
     clearTimeout(fallbackTimer);
+    clearTimeout(finalGuard);
     console.debug(label, states);
     applyStates(states);
     writeCache(states);
@@ -385,73 +386,91 @@ function toggleGridsUnified(){
     applyTemp({grid1:true,grid2:false,grid3:false,grid4:false,grid5:false}, "⏳ Fallback applied (no cache + slow Supabase)");
   },1800);
 
-  // If the network silently hangs, finalize after a longer guard window so state is cached for the next visit
-  setTimeout(()=>applyFinal(showFreshUser(),"Final grid state (timeout guard)"),6500);
+  // If the network silently hangs or user context never appears, finalize after a longer guard window so state is cached for the next visit
+  const finalGuard=setTimeout(()=>applyFinal(showFreshUser(),"Final grid state (timeout guard)"),8500);
 
   const cached=readCache();
   if(cached?.states){
     applyTemp(cached.states, "Applying cached grid states");
   }
 
-  try{
-    const u=window.logged_in_user||(window.Softr&&window.Softr.currentUser)||(window.__U&&window.__U.profile);
-    const email=u?.email||u?.softr_user_email||null;
-    console.debug("User context →",u);
-    if(!email){console.warn("⚠️ No user email found; aborting");applyFinal(showFreshUser(),"Final grid state (no email)");return;}
-
-    const fetcher=(typeof apiFetch==="function")?apiFetch:fetch;
-    const headers=new Headers({"Content-Type":"application/json"});
-    if(!headers.has("Authorization") && window.__U?.cwt){headers.set("Authorization",`Bearer ${window.__U.cwt}`);} 
-    const init={method:"POST",headers,body:JSON.stringify({email})};
-    const doFetch=async()=>{
-      if(fetcher===fetch && typeof ensureFreshToken==="function"){
-        try{await ensureFreshToken();}catch(err){console.warn("[dashboard] token refresh skipped",err);} 
+  const resolveUserContext = (timeoutMs=6000)=>new Promise(resolve=>{
+    const start=Date.now();
+    (function loop(){
+      const u=window.logged_in_user||(window.Softr&&window.Softr.currentUser)||(window.__U&&window.__U.profile);
+      const email=u?.email||u?.softr_user_email||null;
+      if(email){
+        console.debug("User context →",u);
+        return resolve({u,email});
       }
-      return fetcher("https://oomcxsfikujptkfsqgzi.supabase.co/functions/v1/fetch-profiles",init);
-    };
+      if(Date.now()-start>=timeoutMs){
+        console.warn("⚠️ No user email resolved within",timeoutMs,"ms");
+        return resolve(null);
+      }
+      setTimeout(loop,120);
+    })();
+  });
 
-    doFetch()
-    .then(r=>r.json())
-    .then(res=>{
-      console.debug("Returned JSON →",res);
-      const data = res.data || res; // accept either shape
-      const error = res.error;
-      if(error||!data){applyFinal(showFreshUser(),"Final grid state (error/empty response)");return;}
+  try{
+    resolveUserContext().then(ctx=>{
+      if(finalized) return;
+      if(!ctx){applyFinal(showFreshUser(),"Final grid state (no email)");return;}
+      const {email} = ctx;
 
-      const inProgress        = Number(data.in_progress_count||0);
-      const completed         = Number(data.completed_count||0); // legacy fallback
-      const certCount         = Number(data.User_CertificateEnrollments||0);
-      const completedNodes    = Number(data.completed_node_count||0);
-
-      // NEW: status-based completion from User_CertificateEnrollment
-      // (Edge function should return has_completed_cert and/or completed_cert_count)
-      const hasCompletedCert =
-        !!(data.has_completed_cert) ||
-        Number(data.completed_cert_count || 0) > 0;
-
-      const hasCompletedNode =
-        !!(data.has_completed_node) ||
-        completedNodes > 0;
-
-      const states={
-        grid1: inProgress === 0,
-        grid2: inProgress >= 1,
-        // REPLACE old rule:
-        // if (completed >= 1) show($("grid3"), "flex");
-        // WITH status-based rule + safe fallback:
-        grid3: (hasCompletedCert || completed >= 1),
-        grid4: certCount >= 1,
-        grid5: hasCompletedNode
+      const fetcher=(typeof apiFetch==="function")?apiFetch:fetch;
+      const headers=new Headers({"Content-Type":"application/json"});
+      if(!headers.has("Authorization") && window.__U?.cwt){headers.set("Authorization",`Bearer ${window.__U.cwt}`);}
+      const init={method:"POST",headers,body:JSON.stringify({email})};
+      const doFetch=async()=>{
+        if(fetcher===fetch && typeof ensureFreshToken==="function"){
+          try{await ensureFreshToken();}catch(err){console.warn("[dashboard] token refresh skipped",err);}
+        }
+        return fetcher("https://oomcxsfikujptkfsqgzi.supabase.co/functions/v1/fetch-profiles",init);
       };
 
-      if(!Object.values(states).some(Boolean)) states.grid1=true;
+      doFetch()
+      .then(r=>r.json())
+      .then(res=>{
+        console.debug("Returned JSON →",res);
+        const data = res.data || res; // accept either shape
+        const error = res.error;
+        if(error||!data){applyFinal(showFreshUser(),"Final grid state (error/empty response)");return;}
 
-      applyFinal(states,"Final grid state (Supabase)");
+        const inProgress        = Number(data.in_progress_count||0);
+        const completed         = Number(data.completed_count||0); // legacy fallback
+        const certCount         = Number(data.User_CertificateEnrollments||0);
+        const completedNodes    = Number(data.completed_node_count||0);
 
-      // Re-run bubbleization after showing grids
-      window.dispatchEvent(new CustomEvent('@softr/page-content-loaded'));
-    })
-    .catch(e=>{console.error("❌ Fetch failed:",e);applyFinal(showFreshUser(),"Final grid state (fetch failed)");});
+        // NEW: status-based completion from User_CertificateEnrollment
+        // (Edge function should return has_completed_cert and/or completed_cert_count)
+        const hasCompletedCert =
+          !!(data.has_completed_cert) ||
+          Number(data.completed_cert_count || 0) > 0;
+
+        const hasCompletedNode =
+          !!(data.has_completed_node) ||
+          completedNodes > 0;
+
+        const states={
+          grid1: inProgress === 0,
+          grid2: inProgress >= 1,
+          // REPLACE old rule:
+          // if (completed >= 1) show($("grid3"), "flex");
+          // WITH status-based rule + safe fallback:
+          grid3: (hasCompletedCert || completed >= 1),
+          grid4: certCount >= 1,
+          grid5: hasCompletedNode
+        };
+
+        if(!Object.values(states).some(Boolean)) states.grid1=true;
+
+        applyFinal(states,"Final grid state (Supabase)");
+
+        // Re-run bubbleization after showing grids
+        window.dispatchEvent(new CustomEvent('@softr/page-content-loaded'));
+      })
+      .catch(e=>{console.error("❌ Fetch failed:",e);applyFinal(showFreshUser(),"Final grid state (fetch failed)");});
+    });
   }catch(e){console.error("❌ toggleGridsUnified crashed:",e);applyFinal(showFreshUser(),"Final grid state (crash)");}
 }
 (function(){
