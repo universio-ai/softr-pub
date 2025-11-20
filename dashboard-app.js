@@ -341,6 +341,8 @@ window.addEventListener('load',boot,{once:true});
 })();
 
 // 6) GRID VISIBILITY VIA SUPABASE
+let __umLastGridStates=null;
+window.__umReapplyGridStates = window.__umReapplyGridStates || (()=>{});
 function toggleGridsUnified(){
   const $=id=>document.getElementById(id);
 
@@ -389,7 +391,7 @@ function toggleGridsUnified(){
 
   const DISPLAY_MODE={grid1:"block",grid2:"flex",grid3:"flex",grid4:"flex",grid5:"flex"};
   const applyStates=states=>{
-    lastStates = states;
+    __umLastGridStates=states;
     Object.entries(DISPLAY_MODE).forEach(([id,mode])=>{
       const el=$(id);
       show(el,states[id]?mode:"none");
@@ -397,6 +399,14 @@ function toggleGridsUnified(){
     // re-evaluate bubble host after visibility changes (if exposed)
     if (typeof window.__umHelloRetry === "function") {
       setTimeout(window.__umHelloRetry, 60);
+    }
+  };
+  window.__umReapplyGridStates = ()=>{
+    if(!__umLastGridStates) return;
+    applyStates(__umLastGridStates);
+    const bubbleize = window.__umBubbleizeSections;
+    if (typeof bubbleize === 'function') {
+      requestAnimationFrame(()=>{ bubbleize(); });
     }
   };
   const showFreshUser=()=>applyStates({grid1:true,grid2:false,grid3:false,grid4:false,grid5:false});
@@ -500,9 +510,12 @@ function toggleGridsUnified(){
 (function(){
  let hasRun=false;
  const runOnce=()=>{if(hasRun)return;hasRun=true;console.log("⚡ Universio grids initializing");toggleGridsUnified();};
- window.addEventListener("softr:pageLoaded",runOnce,{once:true});
- /* Optional: also listen to Softr's other load event without removing yours */
- window.addEventListener("@softr/page-content-loaded",runOnce,{once:true});
+  window.addEventListener("softr:pageLoaded",runOnce,{once:true});
+  /* Optional: also listen to Softr's other load event without removing yours */
+  window.addEventListener("@softr/page-content-loaded",runOnce,{once:true});
+  // When Softr re-injects the grids after our first run, reapply stored states
+  window.addEventListener("@softr/page-content-loaded",()=>{ requestAnimationFrame(()=>window.__umReapplyGridStates()); });
+  new MutationObserver(()=>{ requestAnimationFrame(()=>window.__umReapplyGridStates()); }).observe(document.getElementById('page-content')||document.body,{childList:true,subtree:true});
  document.addEventListener("DOMContentLoaded",()=>setTimeout(runOnce,600));
  if (document.readyState !== 'loading') setTimeout(runOnce, 100);
 })();
