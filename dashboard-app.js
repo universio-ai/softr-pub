@@ -199,6 +199,9 @@ new MutationObserver(run).observe(document.getElementById('page-content')||docum
 (function(){
 'use strict';
 
+if(window.__umHelloBubbleInstalled) return; // guard against duplicate injection
+window.__umHelloBubbleInstalled=true;
+
 const GRID_IDS = ['grid1','grid2','grid3','grid4','grid5'];
 const SAFE_DELAY_MS = 80;            // small initial wait
 const MIN_VISIBLE_PX = 16;           // smaller threshold = more tolerant
@@ -312,13 +315,13 @@ function toggleGridsUnified(){
     const style=document.createElement('style');
     style.id=LOADER_STYLE_ID;
     style.textContent=`
-#${LOADER_ID}{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:9999;background:rgba(255,255,255,.92);backdrop-filter:blur(3px);transition:opacity .25s ease;}
-#${LOADER_ID}[data-hidden="1"]{opacity:0;pointer-events:none;}
-#${LOADER_ID} .um-grid-loader{display:inline-flex;gap:8px;align-items:center;justify-content:center;}
-#${LOADER_ID} .um-grid-loader span{width:10px;height:10px;border-radius:999px;background:#0f1222;opacity:.3;animation:umGridDot 1s ease-in-out infinite;}
-#${LOADER_ID} .um-grid-loader span:nth-child(2){animation-delay:.1s;}
-#${LOADER_ID} .um-grid-loader span:nth-child(3){animation-delay:.2s;}
-@keyframes umGridDot{0%,80%,100%{transform:scale(.6);opacity:.25;}40%{transform:scale(1);opacity:1;}}
+  #${LOADER_ID}{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:9999;background:linear-gradient(180deg,rgba(248,249,252,.96) 0%,rgba(238,241,247,.94) 100%);backdrop-filter:blur(4px);transition:opacity .25s ease;}
+  #${LOADER_ID}[data-hidden="1"]{opacity:0;pointer-events:none;}
+  #${LOADER_ID} .um-grid-loader{display:inline-flex;gap:9px;align-items:center;justify-content:center;padding:14px 18px;border-radius:16px;background:rgba(255,255,255,.88);box-shadow:0 12px 32px rgba(15,18,34,.12),0 2px 10px rgba(15,18,34,.06);}
+  #${LOADER_ID} .um-grid-loader span{width:10px;height:10px;border-radius:999px;background:#4b4f68;opacity:.28;animation:umGridDot 1s ease-in-out infinite;box-shadow:0 2px 6px rgba(15,18,34,.16);}
+  #${LOADER_ID} .um-grid-loader span:nth-child(2){animation-delay:.1s;}
+  #${LOADER_ID} .um-grid-loader span:nth-child(3){animation-delay:.2s;}
+  @keyframes umGridDot{0%,80%,100%{transform:scale(.72);opacity:.24;}40%{transform:scale(1);opacity:1;}}
     `;
     document.head.appendChild(style);
   };
@@ -549,8 +552,9 @@ function toggleGridsUnified(){
  });
 
  const runOnce=()=>{
-   if(hasRun)return;
+   if(hasRun||window.__umGridInitRunning)return;
    hasRun=true;
+   window.__umGridInitRunning=true;
    waitForReady().then(()=>{
      console.log("⚡ Universio grids initializing");
      toggleGridsUnified();
