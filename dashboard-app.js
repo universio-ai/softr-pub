@@ -401,6 +401,9 @@ function toggleGridsUnified(){
       const el=$(id);
       show(el,states[id]?mode:"none");
     });
+    // re-evaluate bubble host after visibility changes
+    retryCount = 0;
+    setTimeout(tryUntilVisible, 60);
   };
   const showFreshUser=()=>applyStates({grid1:true,grid2:false,grid3:false,grid4:false,grid5:false});
 
@@ -479,7 +482,12 @@ function toggleGridsUnified(){
  window.addEventListener("softr:pageLoaded",runOnce,{once:true});
  /* Optional: also listen to Softr's other load event without removing yours */
  window.addEventListener("@softr/page-content-loaded",runOnce,{once:true});
- document.addEventListener("DOMContentLoaded",()=>setTimeout(runOnce,1500));
+ // Fire as soon as the DOM is ready; keep a short fallback for slow page-loads
+ if(document.readyState!=='loading'){
+   setTimeout(runOnce,80);
+ }else{
+   document.addEventListener("DOMContentLoaded",()=>setTimeout(runOnce,120));
+ }
 })();
 
 // 7) ANALYTICS
