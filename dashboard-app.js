@@ -515,6 +515,7 @@ function toggleGridsUnified(){
  /* Optional: also listen to Softr's other load event without removing yours */
  window.addEventListener("@softr/page-content-loaded",runOnce,{once:true});
  document.addEventListener("DOMContentLoaded",()=>setTimeout(runOnce,600));
+ if (document.readyState !== 'loading') setTimeout(runOnce, 100);
 })();
 
 // 7) ANALYTICS
