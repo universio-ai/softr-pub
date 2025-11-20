@@ -438,7 +438,6 @@ function toggleGridsUnified(){
     if(!email){clearTimeout(gridFailSafeTimer);console.warn("⚠️ No user email found; aborting");showFreshUser();console.groupEnd();return;}
 
     const fetcher=(typeof apiFetch==="function")?apiFetch:fetch;
-
     const resolveCWT = async ()=>{
       const deadline=Date.now()+900;
       while(!window.__U?.cwt && Date.now()<deadline){
@@ -448,9 +447,10 @@ function toggleGridsUnified(){
     };
 
     const headers=new Headers({"Content-Type":"application/json"});
+    if(!headers.has("Authorization") && window.__U?.cwt){headers.set("Authorization",`Bearer ${window.__U.cwt}`);}
     const init={method:"POST",headers,body:JSON.stringify({email})};
     const doFetch=async()=>{
-      const token=await resolveCWT();
+      const token = await resolveCWT();
       if(token && !headers.has("Authorization")) headers.set("Authorization",`Bearer ${token}`);
       if(fetcher===fetch && typeof ensureFreshToken==="function"){
         try{await ensureFreshToken();}catch(err){console.warn("[dashboard] token refresh skipped",err);}
@@ -504,11 +504,12 @@ function toggleGridsUnified(){
       clearTimeout(gridFailSafeTimer);
       applyStates(states);
 
-      // Re-run bubbleization after showing grids; give layout a moment to settle
+      // Notify other helpers that content is visible again
+      window.dispatchEvent(new CustomEvent('@softr/page-content-loaded'));
+
+      // Re-run bubbleization after showing grids
       const bubbleize = window.__umBubbleizeSections;
-      if (typeof bubbleize === 'function') {
-        requestAnimationFrame(()=>{ bubbleize(); });
-      }
+      if (typeof bubbleize === 'function') requestAnimationFrame(()=>bubbleize());
 
       console.groupEnd();
     })
@@ -517,15 +518,12 @@ function toggleGridsUnified(){
 }
 (function(){
  let hasRun=false;
- const runOnce=()=>{if(hasRun)return;hasRun=true;console.log("⚡ Universio grids initializing");toggleGridsUnified();};
+  const runOnce=()=>{if(hasRun)return;hasRun=true;console.log("⚡ Universio grids initializing");toggleGridsUnified();};
   window.addEventListener("softr:pageLoaded",runOnce,{once:true});
   /* Optional: also listen to Softr's other load event without removing yours */
   window.addEventListener("@softr/page-content-loaded",runOnce,{once:true});
-  // When Softr re-injects the grids after our first run, reapply stored states
-  window.addEventListener("@softr/page-content-loaded",()=>{ requestAnimationFrame(()=>window.__umReapplyGridStates()); });
-  new MutationObserver(()=>{ requestAnimationFrame(()=>window.__umReapplyGridStates()); }).observe(document.getElementById('page-content')||document.body,{childList:true,subtree:true});
- document.addEventListener("DOMContentLoaded",()=>setTimeout(runOnce,600));
- if (document.readyState !== 'loading') setTimeout(runOnce, 100);
+  document.addEventListener("DOMContentLoaded",()=>setTimeout(runOnce,1500));
+  if (document.readyState !== 'loading') setTimeout(runOnce,100);
 })();
 
 // 7) ANALYTICS
