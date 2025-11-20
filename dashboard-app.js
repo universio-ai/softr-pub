@@ -77,30 +77,11 @@ html,body{
 
 // 🩵 UNIVERSIO DASHBOARD: Softr pre-hydration hard gate
 (function ensureSoftrUserReady(){
-  const deadline = () => performance.now() + 800; // wait up to 0.8 s
-  let cachedEmail = null;
-
-  const fromSession = () => {
-    if (cachedEmail) return cachedEmail;
-    try {
-      const stored = sessionStorage.getItem("universio:profile");
-      const parsed = stored ? JSON.parse(stored) : null;
-      cachedEmail = parsed?.softr_user_email || parsed?.email || null;
-    } catch (e) {}
-    return cachedEmail;
-  };
-
-  const ready = () => {
-    const email =
-      window.logged_in_user?.softr_user_email ||
-      window.logged_in_user?.email ||
-      window.Softr?.currentUser?.softr_user_email ||
-      window.__U?.profile?.softr_user_email ||
-      window.__U?.profile?.email ||
-      fromSession();
-    if (email) cachedEmail = email;
-    return email;
-  };
+  const deadline = Date.now() + 900; // wait up to 0.9 s to cut startup delay
+  const ready = () =>
+    window.logged_in_user?.softr_user_email ||
+    window.Softr?.currentUser?.softr_user_email ||
+    window.__U?.profile?.softr_user_email;
 
   // 🧩 Hold Softr rendering until user context ready
   const origAddEvent = window.addEventListener;
@@ -533,12 +514,7 @@ function toggleGridsUnified(){
  window.addEventListener("softr:pageLoaded",runOnce,{once:true});
  /* Optional: also listen to Softr's other load event without removing yours */
  window.addEventListener("@softr/page-content-loaded",runOnce,{once:true});
- // Fire as soon as the DOM is ready; keep a short fallback for slow page-loads
- if(document.readyState!=='loading'){
-   setTimeout(runOnce,80);
- }else{
-   document.addEventListener("DOMContentLoaded",()=>setTimeout(runOnce,120));
- }
+ document.addEventListener("DOMContentLoaded",()=>setTimeout(runOnce,600));
 })();
 
 // 7) ANALYTICS
