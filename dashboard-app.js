@@ -486,10 +486,10 @@ function toggleGridsUnified(){
       clearTimeout(gridFailSafeTimer);
       applyStates(states);
 
-      // Re-run bubbleization after showing grids
-      window.dispatchEvent(new CustomEvent('@softr/page-content-loaded'));
-      if (typeof window.__umBubbleizeSections === 'function') {
-        window.__umBubbleizeSections();
+      // Re-run bubbleization after showing grids; give layout a moment to settle
+      const bubbleize = window.__umBubbleizeSections;
+      if (typeof bubbleize === 'function') {
+        requestAnimationFrame(()=>{ bubbleize(); });
       }
 
       console.groupEnd();
