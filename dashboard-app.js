@@ -436,19 +436,18 @@ function toggleGridsUnified(){
   console.groupCollapsed("🔍 Universio Dashboard Debug");
   hideAll();
 
-  // Re-apply the last known visibility once Softr injects the grid nodes to avoid
-  // staying hidden when the initial applyStates ran before the DOM was ready.
-  const reapplyObserver = new MutationObserver(() => {
-    if (!GRID_IDS.every(id => $(id))) return; // wait until all nodes are present
-    queueReapply();
-  });
-  reapplyObserver.observe(document.getElementById('page-content')||document.body,{childList:true,subtree:true});
+  // fail-safe: don't leave the page blank if Supabase is slow
+  const failSafe = setTimeout(()=>{
+    console.warn("⚠️ Grid state fetch timeout; showing starter grid");
+    showFreshUser();
+    console.groupEnd();
+  }, 1400);
 
   try{
     const u=window.logged_in_user||(window.Softr&&window.Softr.currentUser)||(window.__U&&window.__U.profile);
     const email=u?.email||u?.softr_user_email||null;
     console.debug("User context →",u);
-    if(!email){console.warn("⚠️ No user email found; aborting");showFreshUser();console.groupEnd();return;}
+    if(!email){clearTimeout(failSafe);console.warn("⚠️ No user email found; aborting");showFreshUser();console.groupEnd();return;}
 
     const fetcher=(typeof apiFetch==="function")?apiFetch:fetch;
     const headers=new Headers({"Content-Type":"application/json"});
@@ -498,6 +497,7 @@ function toggleGridsUnified(){
 
       if(!Object.values(states).some(Boolean)) states.grid1=true;
 
+      clearTimeout(failSafe);
       applyStates(states);
 
       // Re-run bubbleization after showing grids
@@ -505,8 +505,8 @@ function toggleGridsUnified(){
 
       console.groupEnd();
     })
-    .catch(e=>{settled=true;clearTimeout(failSafeId);console.error("❌ Fetch failed:",e);showFreshUser();console.groupEnd();});
-  }catch(e){settled=true;clearTimeout(failSafeId);console.error("❌ toggleGridsUnified crashed:",e);showFreshUser();console.groupEnd();}
+    .catch(e=>{clearTimeout(failSafe);console.error("❌ Fetch failed:",e);showFreshUser();console.groupEnd();});
+  }catch(e){clearTimeout(failSafe);console.error("❌ toggleGridsUnified crashed:",e);showFreshUser();console.groupEnd();}
 }
 (function(){
  let hasRun=false;
