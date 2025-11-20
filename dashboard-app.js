@@ -367,6 +367,19 @@ window.addEventListener('load',boot,{once:true});
 function toggleGridsUnified(){
   const $=id=>document.getElementById(id);
 
+  // Fallback guard: if the fetch never settles, unhide starter grid so the page
+  // isn't stuck blank (which also blocks the hello bubble from ever appearing).
+  let settled=false;
+  const failSafe=()=>{
+    if(settled) return;
+    settled=true;
+    console.warn("⚠️ Grid state fetch timeout; showing starter grid");
+    showFreshUser();
+    // allow bubbles to re-run once something is on-screen
+    window.dispatchEvent(new CustomEvent('@softr/page-content-loaded'));
+  };
+  const failSafeId=setTimeout(failSafe,1500);
+
   /* ⬇️ EDITED: only the body of `show` changed */
   const show=(el,val)=>{
     if(!el) return;
@@ -416,6 +429,7 @@ function toggleGridsUnified(){
     doFetch()
     .then(r=>r.json())
     .then(res=>{
+      settled=true; clearTimeout(failSafeId);
       console.debug("Returned JSON →",res);
       const data = res.data || res; // accept either shape
       const error = res.error;
@@ -456,8 +470,8 @@ function toggleGridsUnified(){
 
       console.groupEnd();
     })
-    .catch(e=>{console.error("❌ Fetch failed:",e);showFreshUser();console.groupEnd();});
-  }catch(e){console.error("❌ toggleGridsUnified crashed:",e);showFreshUser();console.groupEnd();}
+    .catch(e=>{settled=true;clearTimeout(failSafeId);console.error("❌ Fetch failed:",e);showFreshUser();console.groupEnd();});
+  }catch(e){settled=true;clearTimeout(failSafeId);console.error("❌ toggleGridsUnified crashed:",e);showFreshUser();console.groupEnd();}
 }
 (function(){
  let hasRun=false;
