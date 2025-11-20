@@ -312,7 +312,7 @@ function toggleGridsUnified(){
     const style=document.createElement('style');
     style.id=LOADER_STYLE_ID;
     style.textContent=`
-#${LOADER_ID}{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:9999;background:rgba(255,255,255,.92);backdrop-filter:blur(3px);transition:opacity .25s ease;}
+  #${LOADER_ID}{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:9999;background:rgba(255,255,255,.92);backdrop-filter:blur(3px);transition:opacity .14s ease;}
 #${LOADER_ID}[data-hidden="1"]{opacity:0;pointer-events:none;}
 #${LOADER_ID} .um-grid-loader{display:inline-flex;gap:8px;align-items:center;justify-content:center;}
 #${LOADER_ID} .um-grid-loader span{width:12px;height:12px;border-radius:999px;background:#7B61FF!important;opacity:.28;animation:umGridDot 1s ease-in-out infinite;box-shadow:0 2px 6px rgba(123,97,255,.3);}
@@ -340,7 +340,7 @@ function toggleGridsUnified(){
     const scrim=document.getElementById(LOADER_ID);
     if(!scrim) return;
     scrim.dataset.hidden='1';
-    setTimeout(()=>scrim.remove(),260);
+    setTimeout(()=>scrim.remove(),160);
   };
 
   /* ⬇️ EDITED: only the body of `show` changed */
