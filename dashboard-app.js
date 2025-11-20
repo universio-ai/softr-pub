@@ -375,6 +375,8 @@ function toggleGridsUnified(){
 
   // Fallback guard: if the fetch never settles, unhide starter grid so the page
   // isn't stuck blank (which also blocks the hello bubble from ever appearing).
+  // Give Supabase extra breathing room so we don't flash the sampler grid
+  // before the real states arrive.
   let settled=false;
   const failSafe=()=>{
     if(settled) return;
@@ -384,7 +386,7 @@ function toggleGridsUnified(){
     // allow bubbles to re-run once something is on-screen
     window.dispatchEvent(new CustomEvent('@softr/page-content-loaded'));
   };
-  const failSafeId=setTimeout(failSafe,1500);
+  const failSafeId=setTimeout(failSafe,6000);
 
   /* ⬇️ EDITED: only the body of `show` changed */
   const show=(el,val)=>{
