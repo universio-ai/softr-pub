@@ -502,6 +502,14 @@ function pickNumeric(obj, keys, fallback = 0) {
   if (!obj) return fallback;
   for (const k of keys) {
     const raw = obj[k];
+    if (typeof raw === "string") {
+      const m = raw.match(/-?\d+(?:\.\d+)?/);
+      if (m) {
+        const n = Number(m[0]);
+        if (!Number.isNaN(n)) return n;
+      }
+    }
+
     const n = Number(raw);
     if (!Number.isNaN(n)) return n;
   }
@@ -1229,42 +1237,6 @@ function injectBtn(attempt = 0, maxAttempts = 1) {
 
   return settled;
 
-}
-function ensureFreshBootstrap() {
-  if (CTA_BOOTSTRAP_PROMISE) return CTA_BOOTSTRAP_PROMISE;
-
-  const email = (window.logged_in_user?.softr_user_email || '').toLowerCase();
-  if (!email) return null;
-
-  CTA_BOOTSTRAP_PROMISE = fetch(BOOTSTRAP_URL, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      email,
-      include_progress: true,
-      include_last_activity: true,
-      probe_plan: false,
-    }),
-  })
-    .then((r) => r.json())
-    .then((out) => {
-      if (!out?.ok) return null;
-      const data = out.data || {};
-      window.__U = window.__U || {};
-      window.__U.flags = data.flags || window.__U.flags || {};
-      window.__U.profile = data.profile || window.__U.profile || null;
-      window.__U.progress = data.dashboardProgress || window.__U.progress || [];
-      window.__U.last = data.lastContext || window.__U.last || null;
-      window.__U.courseHints = data.courseHints || window.__U.courseHints || {};
-      window.__U.entitlements = data.entitlements || out.entitlements || window.__U.entitlements || null;
-      sessionStorage.setItem('universio:progress', JSON.stringify(window.__U.progress || []));
-      sessionStorage.setItem('universio:entitlements', JSON.stringify(window.__U.entitlements || {}));
-      if (window.__UM_DEBUG_CTA) console.debug('[UM] CTA bootstrap refresh', { email });
-      return window.__U;
-    })
-    .catch(() => null);
-
-  return CTA_BOOTSTRAP_PROMISE;
 }
 function ensureFreshBootstrap() {
   if (CTA_BOOTSTRAP_PROMISE) return CTA_BOOTSTRAP_PROMISE;
