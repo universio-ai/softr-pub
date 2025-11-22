@@ -131,6 +131,10 @@ window.__U.cwt_expires_at = __toEpochSeconds(out.data?.cwt_expires_at || out.cwt
     sessionStorage.setItem("universio:flags", JSON.stringify(window.__U.flags || {}));
     sessionStorage.setItem("universio:profile", JSON.stringify(window.__U.profile || {}));
     sessionStorage.setItem("universio:progress", JSON.stringify(window.__U.progress || []));
+    sessionStorage.setItem(
+      "universio:entitlements",
+      JSON.stringify(window.__U.entitlements || {})
+    );
     if (window.__U.last)
       sessionStorage.setItem("universio:last", JSON.stringify(window.__U.last));
 
@@ -361,6 +365,34 @@ window.__umCtaScriptOnce = true;
   if (window.__umCourseGateInjected) return;
   window.__umCourseGateInjected = true;
 
+  function readSessionJSON(key) {
+    try {
+      const raw = sessionStorage.getItem(key);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) {
+      console.warn(`[UM] failed to parse session cache for ${key}`, e);
+      return null;
+    }
+  }
+
+  // Hydrate cached bootstrap payload (progress/last/entitlements) for pages
+  // that load before the edge call completes. This also helps when Softr
+  // navigations reuse the same tab but skip the bootstrap call entirely.
+  function hydrateCachedSession() {
+    window.__U = window.__U || {};
+    if (!window.__U.flags) window.__U.flags = readSessionJSON("universio:flags") || {};
+    if (!window.__U.profile) window.__U.profile = readSessionJSON("universio:profile") || null;
+    if (!Array.isArray(window.__U.progress)) {
+      window.__U.progress = readSessionJSON("universio:progress") || [];
+    }
+    if (!window.__U.entitlements) {
+      window.__U.entitlements = readSessionJSON("universio:entitlements") || null;
+    }
+    if (!window.__U.last) window.__U.last = readSessionJSON("universio:last") || null;
+  }
+
+  hydrateCachedSession();
+
   function up(x){ return (x||"").toString().trim().toUpperCase(); }
 
 function getCourseId(){
@@ -399,6 +431,64 @@ function normalizeCourseId(id = "") {
   return m ? m[0].toUpperCase() : trimmed.toUpperCase();
 }
 
+function entCourseStats(ent = {}) {
+  const stats = [];
+  const courses = ent.courses || {};
+  if (Array.isArray(courses.stats)) stats.push(...courses.stats);
+  if (Array.isArray(courses.course_stats)) stats.push(...courses.course_stats);
+  if (Array.isArray(ent.course_stats)) stats.push(...ent.course_stats);
+  if (courses.stats_map && typeof courses.stats_map === "object") {
+    stats.push(...Object.values(courses.stats_map));
+  }
+  if (courses.statsById && typeof courses.statsById === "object") {
+    stats.push(...Object.values(courses.statsById));
+  }
+  if (courses.progress && Array.isArray(courses.progress)) stats.push(...courses.progress);
+  if (courses.progress_map && typeof courses.progress_map === "object") {
+    stats.push(...Object.values(courses.progress_map));
+  }
+  return stats;
+}
+
+function entCompletedCourses(ent = {}) {
+  const courses = ent.courses || {};
+  const lists = [
+    courses.completed_courses,
+    courses.completed,
+    courses.finished_courses,
+    ent.completed_courses,
+  ];
+  const out = new Set();
+  for (const list of lists) {
+    if (!Array.isArray(list)) continue;
+    list.map(normalizeCourseId).forEach((cid) => cid && out.add(cid));
+  }
+  return out;
+}
+
+function entResumeNode(ent = {}, cid) {
+  const normCid = normalizeCourseId(cid);
+  const courses = ent.courses || {};
+  const node =
+    courses.active_course_nodes?.[normCid] ||
+    courses.resume_nodes?.[normCid] ||
+    courses.active_nodes?.[normCid] ||
+    courses.course_nodes?.[normCid] ||
+    courses.last_nodes?.[normCid] ||
+    null;
+  return node ? String(node).toUpperCase() : null;
+}
+
+function domShowsCompletion() {
+  const txt = (document.body?.innerText || "").toLowerCase();
+  if (!txt) return false;
+  return (
+    txt.includes("course has been completed") ||
+    txt.includes("this course has been completed") ||
+    txt.includes("completed! view certificate")
+  );
+}
+
 function pickNumeric(obj, keys, fallback = 0) {
   if (!obj) return fallback;
   for (const k of keys) {
@@ -434,7 +524,9 @@ function isCourseCompleted(cid) {
   const stats = Array.isArray(window.__U?.entitlements?.courses?.stats)
     ? window.__U.entitlements.courses.stats
     : [];
-  const statHit = stats.find((s) => normalizeCourseId(s.course_id) === normCid);
+  const extraStats = entCourseStats(window.__U?.entitlements || {});
+  const allStats = stats.concat(extraStats);
+  const statHit = allStats.find((s) => normalizeCourseId(s.course_id) === normCid);
   if (statHit) {
     const percent = pickNumeric(statHit, ["percent_complete", "percentComplete", "completion_percent", "progress_percent", "progressPercent"]);
     if (
@@ -446,6 +538,11 @@ function isCourseCompleted(cid) {
     }
   }
 
+  const completedList = entCompletedCourses(window.__U?.entitlements || {});
+  if (completedList.has(normCid)) return true;
+
+  if (domShowsCompletion()) return true;
+
   return false;
 }
 
@@ -456,7 +553,15 @@ function getCourseStartHint(cid) {
   const stats = Array.isArray(window.__U?.entitlements?.courses?.stats)
     ? window.__U.entitlements.courses.stats
     : [];
+  const entStats = entCourseStats(window.__U?.entitlements || {});
   const last = window.__U?.last || null;
+  const ent = window.__U?.entitlements || {};
+  const activeCourses = new Set((ent.courses?.active_courses || []).map(normalizeCourseId));
+  const entNode = entResumeNode(ent, normCid);
+
+  const resumeFromEntNode = entNode
+    ? `/classroom?graph=${normCid}&node=${entNode}`
+    : null;
 
   const hint = hints[normCid] || null;
   const progHit = progress.find((p) => normalizeCourseId(p.course_id) === normCid);
@@ -468,7 +573,7 @@ function getCourseStartHint(cid) {
     String(progHit?.status || progHit?.state || "").toLowerCase() === "in_progress"
   );
 
-  const statHit = stats.find((s) => normalizeCourseId(s.course_id) === normCid);
+  const statHit = stats.concat(entStats).find((s) => normalizeCourseId(s.course_id) === normCid);
   const statPercent = pickNumeric(statHit, ["percent_complete", "percentComplete", "completion_percent", "progress_percent", "progressPercent"]);
   const startedFromStats = !!statHit && (
     statPercent > 0 ||
@@ -485,10 +590,12 @@ function getCourseStartHint(cid) {
     hint?.alreadyStarted ||
     startedFromProgress ||
     startedFromStats ||
-    lastMatch
+    lastMatch ||
+    activeCourses.has(normCid)
   );
   const resumeUrl = normalizeUrl(
     hint?.resumeUrl ||
+      resumeFromEntNode ||
       resumeFromLast ||
       startUrlFor(normCid)
   );
@@ -502,6 +609,7 @@ function getCourseStartHint(cid) {
       statHit,
       statPercent,
       last,
+      entNode,
       alreadyStarted,
       resumeUrl,
     });
