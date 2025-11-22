@@ -319,11 +319,12 @@ window.addEventListener("@softr/page-content-loaded", () => {
 if (window.__umCtaScriptOnce) { return; }
 window.__umCtaScriptOnce = true;
 
-  const pathAfterOrigin = (location.pathname || '').replace(/^\/+/, '');
-  const isCoursePage = /^C0/i.test(pathAfterOrigin);
-  if (!isCoursePage) {
-    return;
-  }
+  // Softr course pages don't always have a URL that starts with the course code
+  // (e.g., some use `/courses/C004/...`). Treat the presence of the UM marker
+  // or any detectable course code in the URL as a signal to run the CTA logic.
+  const hasMarker = !!document.getElementById('um-course');
+  const pathHasCid = /C\d{3}/i.test((location.pathname || '').replace(/^\/+/, ''));
+  if (!hasMarker && !pathHasCid) return;
 
   if (window.__umCourseGateInjected) return;
   window.__umCourseGateInjected = true;
