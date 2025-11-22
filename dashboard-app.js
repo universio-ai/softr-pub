@@ -522,8 +522,10 @@ function toggleGridsUnified(){
           const data = res.data || res; // accept either shape
           const error = res.error;
           if(error||!data){
-            const fallbackStates=(cached?.email===resolvedEmail?cached.states:null)||showFreshUser();
-            applyFinal(fallbackStates,"Final grid state (error/empty response)",!!cached?.states);
+            cached=null;
+            sessionStorage.removeItem(CACHE_KEY);
+            const fallbackStates=showFreshUser();
+            applyFinal(fallbackStates,"Final grid state (error/empty response)",false);
             return;
           }
 
@@ -562,14 +564,18 @@ function toggleGridsUnified(){
         })
         .catch(e=>{
           console.error("❌ Fetch failed:",e);
-          const fallbackStates=(cached?.email===resolvedEmail?cached.states:null)||showFreshUser();
-          applyFinal(fallbackStates,"Final grid state (fetch failed)",!!cached?.states);
+          cached=null;
+          sessionStorage.removeItem(CACHE_KEY);
+          const fallbackStates=showFreshUser();
+          applyFinal(fallbackStates,"Final grid state (fetch failed)",false);
         });
       });
     }catch(e){
       console.error("❌ toggleGridsUnified crashed:",e);
-      const fallbackStates=(cached?.email===resolvedEmail?cached.states:null)||showFreshUser();
-      applyFinal(fallbackStates,"Final grid state (crash)",!!cached?.states);
+      cached=null;
+      sessionStorage.removeItem(CACHE_KEY);
+      const fallbackStates=showFreshUser();
+      applyFinal(fallbackStates,"Final grid state (crash)",false);
     }
   };
 
