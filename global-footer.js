@@ -317,6 +317,7 @@ window.addEventListener("@softr/page-content-loaded", () => {
 <script>
 function normalizeTier(value){
   const s = (value || '').toString().trim().toLowerCase();
+  if (s.includes('sampler')) return 'sampler';
   if (s.includes('pro')) return 'pro';
   if (s.includes('plus')) return 'plus';
   if (s.includes('basic')) return 'basic';
@@ -326,29 +327,18 @@ function normalizeTier(value){
 
 function resolveTierSignals() {
   const U = window.__U || {};
-  const ent = U.entitlements || {};
+  const u = window.logged_in_user || {};
   const signals = {
-    ent_tier: ent.plan?.tier,
+    softr_plan_code: u.plan_code,
+    softr_plan_name: u.plan_name,
     profile_plan_code: U.profile?.plan_code,
     profile_plan_name: U.profile?.plan_name,
-    profile_billing: U.profile?.billing_plan_type,
-    softr_plan_code: window.logged_in_user?.plan_code,
-    softr_plan_name: window.logged_in_user?.plan_name,
-    softr_billing: window.logged_in_user?.billing_plan_type,
   };
 
-  const tier = normalizeTier(
-    signals.ent_tier ||
-      signals.profile_plan_code ||
-      signals.profile_plan_name ||
-      signals.profile_billing ||
-      signals.softr_plan_code ||
-      signals.softr_plan_name ||
-      signals.softr_billing ||
-      'sampler'
-  );
+  const tierSource = signals.softr_plan_code || signals.softr_plan_name || '';
+  const tier = normalizeTier(tierSource);
 
-  return { tier, signals };
+  return { tier, signals: { ...signals, tier_source: tierSource || 'sampler (default)' } };
 }
 
 (function () {
