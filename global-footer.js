@@ -683,10 +683,10 @@ function watchAndInject(){
     const p = document.createElement('div'); p.id='um-lock';
     Object.assign(p.style,{position:'fixed',inset:'0',background:'rgba(255,255,255,0.96)',zIndex:'9999',display:'grid',placeItems:'center',padding:'24px'});
     p.innerHTML = `<div style="max-width:720px;text-align:center">
-      <div style="font-size:24px;font-weight:700;margin-bottom:10px;">Module locked</div>
+      <div style="font-size:24px;font-weight:700;margin-bottom:10px;">Course Locked</div>
       <div style="font-size:16px;line-height:1.6;margin-bottom:18px;">${msg}</div>
-      <a href="/pricing" class="sw-btn sw-btn--primary" style="padding:12px 18px;border-radius:24px;font-weight:600;">Upgrade</a>
-      <a href="/" style="display:block;margin-top:12px;text-decoration:underline">Back to dashboard</a>
+      <a href="/plans" class="sw-btn sw-btn--primary" style="padding:12px 18px;border-radius:24px;font-weight:600;">Upgrade</a>
+      <a href="/dashboard" style="display:block;margin-top:12px;text-decoration:underline">Back to dashboard</a>
     </div>`;
     document.body.appendChild(p);
   }
@@ -709,7 +709,7 @@ function watchAndInject(){
     );
     if (!allowed.has(cid)) {
       console.debug('[UM] Module gate decision', { cid, tier, reason: 'sampler-blocked', signals, allowed: [...allowed] });
-      lock(`Sampler includes C001–C003 only. <code>${cid}</code> is a full course.`); return; }
+      lock(`Sampler includes C001–C003 only. <code>${cid}</code> is a non-sampler course.`); return; }
 
     const limit = +ent.courses?.sampler_module_limit || 3;
     const idx = nodeIndex(); if (idx == null) return;
