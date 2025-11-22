@@ -657,7 +657,12 @@ function getCourseStartHint(cid) {
 }
 
 const CERT_LINK_CACHE = new Map();
+const COURSE_CERT_IDS = new Map();
 const BOOTSTRAP_URL = "https://oomcxsfikujptkfsqgzi.supabase.co/functions/v1/user-bootstrap";
+
+function normalizeCertId(id = "") {
+  return String(id || "").trim().toUpperCase();
+}
 
 function pickEnrollmentCertUrl(certIds = []) {
   const enrollments = Array.isArray(window.__U?.entitlements?.certificate_enrollments)
@@ -675,14 +680,62 @@ function pickEnrollmentCertUrl(certIds = []) {
   return null;
 }
 
-async function resolveCourseCertificateUrl(cid) {
+function analyzeCertEnrollments(cid, certIds = []) {
+  const enrollments = Array.isArray(window.__U?.entitlements?.certificate_enrollments)
+    ? window.__U.entitlements.certificate_enrollments
+    : [];
+  const targets = new Set([normalizeCourseId(cid), ...certIds.map(normalizeCertId)]);
+
+  let bestUrl = null;
+  let started = false;
+  let completed = false;
+
+  for (const enr of enrollments) {
+    const eid = normalizeCertId(enr?.cert_id || enr?.certId || enr?.course_id || "");
+    if (!eid || (!targets.has(eid) && !targets.has(normalizeCourseId(eid)))) continue;
+
+    const status = String(enr?.status || enr?.state || "").toLowerCase();
+    const hasUrl = typeof enr?.cert_url === "string" && enr.cert_url.trim();
+    const completedFlag =
+      status.includes("complete") ||
+      status.includes("earned") ||
+      status.includes("issued") ||
+      Number(enr?.completed) === 1 ||
+      !!hasUrl;
+    const startedFlag =
+      completedFlag ||
+      status.includes("progress") ||
+      status.includes("in progress") ||
+      status.includes("started") ||
+      status.includes("active") ||
+      Number(enr?.in_progress) === 1;
+
+    started = started || startedFlag;
+    completed = completed || completedFlag;
+    bestUrl = hasUrl || bestUrl;
+  }
+
+  return { started, completed, certUrl: bestUrl };
+}
+
+function getCachedCourseCertIds(cid) {
   const normCid = normalizeCourseId(cid);
-  if (!normCid) return "/certificate";
-  if (CERT_LINK_CACHE.has(normCid)) return CERT_LINK_CACHE.get(normCid);
+  const val = COURSE_CERT_IDS.get(normCid);
+  if (Array.isArray(val)) return val;
+  return [];
+}
+
+function fetchCourseCertIds(cid) {
+  const normCid = normalizeCourseId(cid);
+  if (!normCid) return Promise.resolve([]);
+
+  const cached = COURSE_CERT_IDS.get(normCid);
+  if (cached) {
+    return cached.then ? cached : Promise.resolve(cached);
+  }
 
   const promise = (async () => {
     let certIds = [];
-
     try {
       await ensureFreshToken();
       const res = await apiFetch(BOOTSTRAP_URL, {
@@ -702,13 +755,30 @@ async function resolveCourseCertificateUrl(cid) {
         certIds = certs
           .map((c) => c?.business_id || c?.cert_id || c?.certId || c?.id || null)
           .filter(Boolean)
-          .map(normalizeCourseId);
+          .map(normalizeCertId);
       }
     } catch (err) {
       console.warn("[UM] cert map fetch failed", err);
     }
 
-    const enrolledUrl = pickEnrollmentCertUrl(certIds.length ? certIds : [normCid]);
+    COURSE_CERT_IDS.set(normCid, certIds);
+    return certIds;
+  })();
+
+  COURSE_CERT_IDS.set(normCid, promise);
+  return promise;
+}
+
+async function resolveCourseCertificateUrl(cid) {
+  const normCid = normalizeCourseId(cid);
+  if (!normCid) return "/certificate";
+  if (CERT_LINK_CACHE.has(normCid)) return CERT_LINK_CACHE.get(normCid);
+
+  const promise = (async () => {
+    const certIds = await fetchCourseCertIds(normCid).catch(() => []);
+    const normalizedIds = Array.isArray(certIds) ? certIds.map(normalizeCertId) : [];
+
+    const enrolledUrl = pickEnrollmentCertUrl(normalizedIds.length ? normalizedIds : [normCid]);
     if (enrolledUrl) return enrolledUrl;
 
     return "/certificate";
@@ -827,6 +897,9 @@ function bindPlacementListeners() {
 function findCourseContainer() {
   const cid = getCourseId();
 
+  const host = document.getElementById('um-course-cta-host');
+  if (host) return { el: host, mode: 'host' };
+
   // Prefer Softr's own CTA placeholder so we stay anchored where the
   // platform would normally render the button (typically near the bottom
   // of the course card/section).
@@ -847,9 +920,6 @@ function findCourseContainer() {
   }
 
   if (placeholder) return { el: placeholder, mode: 'after-link' };
-
-  const host = document.getElementById('um-course-cta-host');
-  if (host) return { el: host, mode: 'host' };
 
   const selectors = [
     '.softr-grid-container',
@@ -958,10 +1028,10 @@ function setMessage(text = '') {
 
 setLoadingState(ensureBtn());
 
-function handleCompletion(cid) {
+function handleCompletion(cid, resolvedUrl = null) {
   const btn = ensureBtn();
   setLoadingState(btn, "Completed – loading certificate…");
-  resolveCourseCertificateUrl(cid)
+  (resolvedUrl ? Promise.resolve(resolvedUrl) : resolveCourseCertificateUrl(cid))
     .catch((err) => {
       console.warn("[UM] unable to resolve course certificate", err);
       return "/certificate";
@@ -1015,10 +1085,11 @@ function injectBtn(attempt = 0, maxAttempts = 1) {
 
   const startHint = getCourseStartHint(cid);
   const completionDetected = isCourseCompleted(cid);
+  const certEvidence = analyzeCertEnrollments(cid, getCachedCourseCertIds(cid));
 
-  if (completionDetected) {
+  if (completionDetected || certEvidence.completed) {
     CTACompletionFired = true;
-    handleCompletion(cid);
+    handleCompletion(cid, certEvidence.certUrl || null);
     return true;
   }
 
@@ -1060,13 +1131,25 @@ function injectBtn(attempt = 0, maxAttempts = 1) {
     return true;
   }
 
-  const already = !!startHint.alreadyStarted;
+  const already = !!(startHint.alreadyStarted || certEvidence.started);
   const label = already ? 'Resume' : 'Start';
-  const hasEvidence = Object.values(startHint.evidence || {}).some(Boolean);
+  const hasEvidence =
+    Object.values(startHint.evidence || {}).some(Boolean) ||
+    certEvidence.started ||
+    certEvidence.completed;
 
   setReadyState(btn, label, startHint.resumeUrl);
   placeBtnWrapper();
-  logDecision({ cid, tier, label, resumeUrl: startHint.resumeUrl, signals, samplerAllowed: [...samplerAllowed], already });
+  logDecision({
+    cid,
+    tier,
+    label,
+    resumeUrl: startHint.resumeUrl,
+    signals,
+    samplerAllowed: [...samplerAllowed],
+    already,
+    certEvidence,
+  });
 
   const settled =
     completionDetected ||
@@ -1078,6 +1161,34 @@ function injectBtn(attempt = 0, maxAttempts = 1) {
   if (!settled && window.__UM_DEBUG_CTA && LAST_AWAIT_LOG < 0) {
     LAST_AWAIT_LOG = attempt;
     console.debug('[UM] CTA awaiting signals', { cid, attempt, maxAttempts });
+  }
+
+  if (!settled) {
+    fetchCourseCertIds(cid)
+      .then((ids) => analyzeCertEnrollments(cid, Array.isArray(ids) ? ids : []))
+      .then((extra) => {
+        if (!extra) return;
+        if (extra.completed && !CTACompletionFired) {
+          CTACompletionFired = true;
+          handleCompletion(cid, extra.certUrl || null);
+          return;
+        }
+        if (!already && (extra.started || extra.completed)) {
+          setReadyState(btn, 'Resume', startHint.resumeUrl);
+          placeBtnWrapper();
+          logDecision({
+            cid,
+            tier,
+            label: 'Resume',
+            resumeUrl: startHint.resumeUrl,
+            signals,
+            samplerAllowed: [...samplerAllowed],
+            already: true,
+            certEvidence: extra,
+          });
+        }
+      })
+      .catch(() => {});
   }
 
   return settled;
