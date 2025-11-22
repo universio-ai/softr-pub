@@ -517,6 +517,9 @@ function isCourseCompleted(cid) {
   if (!cid) return false;
   const normCid = normalizeCourseId(cid);
 
+  const certEvidence = analyzeCertEnrollments(normCid, getCachedCourseCertIds(normCid));
+  if (certEvidence.completed) return true;
+
   const certEnrollment = certEnrollmentForCourse(normCid);
   if (certEnrollment) {
     const status = String(certEnrollment.status || certEnrollment.state || "").toLowerCase();
@@ -577,6 +580,8 @@ function getCourseStartHint(cid) {
   const activeCourses = new Set((ent.courses?.active_courses || []).map(normalizeCourseId));
   const entNode = entResumeNode(ent, normCid);
   const certEnrollment = certEnrollmentForCourse(normCid);
+  const cachedCertIds = getCachedCourseCertIds(normCid);
+  const certEvidence = analyzeCertEnrollments(normCid, cachedCertIds);
 
   const resumeFromEntNode = entNode
     ? `/classroom?graph=${normCid}&node=${entNode}`
@@ -614,7 +619,9 @@ function getCourseStartHint(cid) {
     startedFromStats ||
     lastMatch ||
     activeCourses.has(normCid) ||
-    enrollmentShowsProgress
+    enrollmentShowsProgress ||
+    certEvidence.started ||
+    certEvidence.completed
   );
   const resumeUrl = normalizeUrl(
     hint?.resumeUrl ||
@@ -631,6 +638,7 @@ function getCourseStartHint(cid) {
     entNode: !!entNode,
     activeCourse: activeCourses.has(normCid),
     certEnrollment: !!certEnrollment,
+    certEvidence,
   };
 
   if (window.__UM_DEBUG_CTA) {
@@ -718,6 +726,33 @@ function analyzeCertEnrollments(cid, certIds = []) {
   return { started, completed, certUrl: bestUrl };
 }
 
+function hydrateCachedCourseCertIds() {
+  try {
+    const raw = sessionStorage.getItem('universio:courseCertIds');
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return;
+    Object.entries(parsed).forEach(([k, v]) => {
+      const cid = normalizeCourseId(k);
+      if (cid && Array.isArray(v)) {
+        COURSE_CERT_IDS.set(cid, v.map(normalizeCertId));
+      }
+    });
+  } catch {}
+}
+hydrateCachedCourseCertIds();
+
+function persistCourseCertIds() {
+  const obj = {};
+  COURSE_CERT_IDS.forEach((val, key) => {
+    const arr = Array.isArray(val) ? val : val && val.then ? null : [];
+    if (arr && arr.length) obj[key] = arr;
+  });
+  try {
+    sessionStorage.setItem('universio:courseCertIds', JSON.stringify(obj));
+  } catch {}
+}
+
 function getCachedCourseCertIds(cid) {
   const normCid = normalizeCourseId(cid);
   const val = COURSE_CERT_IDS.get(normCid);
@@ -762,6 +797,7 @@ function fetchCourseCertIds(cid) {
     }
 
     COURSE_CERT_IDS.set(normCid, certIds);
+    persistCourseCertIds();
     return certIds;
   })();
 
@@ -1193,6 +1229,42 @@ function injectBtn(attempt = 0, maxAttempts = 1) {
 
   return settled;
 
+}
+function ensureFreshBootstrap() {
+  if (CTA_BOOTSTRAP_PROMISE) return CTA_BOOTSTRAP_PROMISE;
+
+  const email = (window.logged_in_user?.softr_user_email || '').toLowerCase();
+  if (!email) return null;
+
+  CTA_BOOTSTRAP_PROMISE = fetch(BOOTSTRAP_URL, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      email,
+      include_progress: true,
+      include_last_activity: true,
+      probe_plan: false,
+    }),
+  })
+    .then((r) => r.json())
+    .then((out) => {
+      if (!out?.ok) return null;
+      const data = out.data || {};
+      window.__U = window.__U || {};
+      window.__U.flags = data.flags || window.__U.flags || {};
+      window.__U.profile = data.profile || window.__U.profile || null;
+      window.__U.progress = data.dashboardProgress || window.__U.progress || [];
+      window.__U.last = data.lastContext || window.__U.last || null;
+      window.__U.courseHints = data.courseHints || window.__U.courseHints || {};
+      window.__U.entitlements = data.entitlements || out.entitlements || window.__U.entitlements || null;
+      sessionStorage.setItem('universio:progress', JSON.stringify(window.__U.progress || []));
+      sessionStorage.setItem('universio:entitlements', JSON.stringify(window.__U.entitlements || {}));
+      if (window.__UM_DEBUG_CTA) console.debug('[UM] CTA bootstrap refresh', { email });
+      return window.__U;
+    })
+    .catch(() => null);
+
+  return CTA_BOOTSTRAP_PROMISE;
 }
 function ensureFreshBootstrap() {
   if (CTA_BOOTSTRAP_PROMISE) return CTA_BOOTSTRAP_PROMISE;
