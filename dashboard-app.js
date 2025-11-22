@@ -451,7 +451,10 @@ function toggleGridsUnified(){
   // This avoids showing another user's cached grids when accounts switch.
   applyTemp(showFreshUser(), "Applying fresh-user defaults while resolving user");
 
-  const cached=readCache();
+  // Cache is validated against the resolved user; we null it out immediately if
+  // it does not belong to the current session to avoid leaking old states into
+  // fallbacks.
+  let cached=readCache();
 
   const resolveUserContext = (timeoutMs=12000)=>new Promise(resolve=>{
     const start=Date.now();
@@ -497,6 +500,7 @@ function toggleGridsUnified(){
             applyTemp(cached.states, "Applying cached grid states for user");
           }else{
             sessionStorage.removeItem(CACHE_KEY);
+            cached=null; // prevent stale cache from being reused in fallbacks
           }
         }
 
@@ -518,7 +522,7 @@ function toggleGridsUnified(){
           const data = res.data || res; // accept either shape
           const error = res.error;
           if(error||!data){
-            const fallbackStates=cached?.states||showFreshUser();
+            const fallbackStates=(cached?.email===resolvedEmail?cached.states:null)||showFreshUser();
             applyFinal(fallbackStates,"Final grid state (error/empty response)",!!cached?.states);
             return;
           }
@@ -558,13 +562,13 @@ function toggleGridsUnified(){
         })
         .catch(e=>{
           console.error("❌ Fetch failed:",e);
-          const fallbackStates=cached?.states||showFreshUser();
+          const fallbackStates=(cached?.email===resolvedEmail?cached.states:null)||showFreshUser();
           applyFinal(fallbackStates,"Final grid state (fetch failed)",!!cached?.states);
         });
       });
     }catch(e){
       console.error("❌ toggleGridsUnified crashed:",e);
-      const fallbackStates=cached?.states||showFreshUser();
+      const fallbackStates=(cached?.email===resolvedEmail?cached.states:null)||showFreshUser();
       applyFinal(fallbackStates,"Final grid state (crash)",!!cached?.states);
     }
   };
