@@ -383,8 +383,92 @@ const START_NODE = {
 const startUrlFor = cid => `/classroom?graph=${cid}${START_NODE[cid] ? `&node=${START_NODE[cid]}` : ''}`;
 const normalizeUrl = u => {
   const x = new URL(u, location.origin);
+  if (x.origin !== location.origin) return x.href;
   return x.pathname + x.search + x.hash;
 };
+
+function normalizeCourseId(id = "") {
+  const trimmed = String(id || "").trim();
+  const m = trimmed.match(/^C\d{3}/i);
+  return m ? m[0].toUpperCase() : trimmed.toUpperCase();
+}
+
+function isCourseCompleted(cid) {
+  if (!cid) return false;
+  const normCid = normalizeCourseId(cid);
+
+  const progress = Array.isArray(window.__U?.progress) ? window.__U.progress : [];
+  const progHit = progress.find((p) => normalizeCourseId(p.course_id) === normCid);
+  if (progHit?.completed || Number(progHit?.percent_complete || 0) >= 100) return true;
+
+  const stats = Array.isArray(window.__U?.entitlements?.courses?.stats)
+    ? window.__U.entitlements.courses.stats
+    : [];
+  const statHit = stats.find((s) => normalizeCourseId(s.course_id) === normCid);
+  return Number(statHit?.percent_complete || 0) >= 100;
+}
+
+const CERT_LINK_CACHE = new Map();
+const BOOTSTRAP_URL = "https://oomcxsfikujptkfsqgzi.supabase.co/functions/v1/user-bootstrap";
+
+function pickEnrollmentCertUrl(certIds = []) {
+  const enrollments = Array.isArray(window.__U?.entitlements?.certificate_enrollments)
+    ? window.__U.entitlements.certificate_enrollments
+    : [];
+  const targets = new Set(certIds.map((id) => normalizeCourseId(id)));
+
+  for (const enr of enrollments) {
+    const cid = normalizeCourseId(enr?.cert_id || enr?.certId || "");
+    if (!cid || !targets.has(cid)) continue;
+    const url = enr?.cert_url || enr?.certUrl || null;
+    if (typeof url === "string" && url.trim()) return url;
+  }
+
+  return null;
+}
+
+async function resolveCourseCertificateUrl(cid) {
+  const normCid = normalizeCourseId(cid);
+  if (!normCid) return "/certificate";
+  if (CERT_LINK_CACHE.has(normCid)) return CERT_LINK_CACHE.get(normCid);
+
+  const promise = (async () => {
+    let certIds = [];
+
+    try {
+      await ensureFreshToken();
+      const res = await apiFetch(BOOTSTRAP_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: __currentEmail(),
+          mode: "cert-map",
+          course_id: normCid,
+        }),
+      });
+      const json = await res.json().catch(() => null);
+      if (res.ok) {
+        const certs = Array.isArray(json?.data?.certificates)
+          ? json.data.certificates
+          : json?.certificates || [];
+        certIds = certs
+          .map((c) => c?.business_id || c?.cert_id || c?.certId || c?.id || null)
+          .filter(Boolean)
+          .map(normalizeCourseId);
+      }
+    } catch (err) {
+      console.warn("[UM] cert map fetch failed", err);
+    }
+
+    const enrolledUrl = pickEnrollmentCertUrl(certIds.length ? certIds : [normCid]);
+    if (enrolledUrl) return enrolledUrl;
+
+    return "/certificate";
+  })();
+
+  CERT_LINK_CACHE.set(normCid, promise);
+  return promise;
+}
 
 let CTA_BTN = null;
 let CTA_WRAPPER = null;
@@ -586,6 +670,22 @@ function injectBtn() {
 
   const hints = U.courseHints || {};
   const hint = hints[cid];
+
+  if (isCourseCompleted(cid)) {
+    setLoadingState(btn, "Completed – loading certificate…");
+    resolveCourseCertificateUrl(cid)
+      .catch((err) => {
+        console.warn("[UM] unable to resolve course certificate", err);
+        return "/certificate";
+      })
+      .then((url) => {
+        const target = normalizeUrl(url || "/certificate");
+        setReadyState(btn, "Completed • View Certificate", target);
+        placeBtnWrapper();
+      });
+    placeBtnWrapper();
+    return true;
+  }
 
   const BASE_SAMPLER_ALLOWED = ['C001','C002','C003'];
   const { tier, signals } = resolveTierSignals();
