@@ -491,6 +491,8 @@ function toggleGridsUnified(){
         }
         const {email} = ctx;
         resolvedEmail=email;
+        window.__U = window.__U || {};
+        window.__U.current_email = resolvedEmail;
 
         // If the cached email doesn't match this session, drop the cache so
         // grids can't be borrowed from another user. If it matches, reuse it
@@ -510,7 +512,7 @@ function toggleGridsUnified(){
         const init={method:"POST",headers,body:JSON.stringify({email})};
         const doFetch=async()=>{
           if(fetcher===fetch && typeof ensureFreshToken==="function"){
-            try{await ensureFreshToken();}catch(err){console.warn("[dashboard] token refresh skipped",err);} 
+            try{await ensureFreshToken(resolvedEmail);}catch(err){console.warn("[dashboard] token refresh skipped",err);}
           }
           return fetcher("https://oomcxsfikujptkfsqgzi.supabase.co/functions/v1/fetch-profiles",init);
         };

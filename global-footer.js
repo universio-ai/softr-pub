@@ -134,8 +134,10 @@ let __refreshing = null;
 
 function __currentEmail() {
   return (
+    window.__U?.current_email ||
     window.logged_in_user?.softr_user_email ||
     window.logged_in_user?.email ||
+    window.__U?.profile?.email ||
     ""
   ).toLowerCase();
 }
@@ -152,8 +154,8 @@ function authHeaders(init = {}) {
 }
 
 /** Call bootstrap edge to mint/refresh CWT */
-async function refreshCWT() {
- const EMAIL = __currentEmail();
+async function refreshCWT(emailOverride = "") {
+ const EMAIL = (emailOverride || __currentEmail()).trim();
  if (!EMAIL) throw new Error("no email available for CWT refresh");
  const res = await fetch("https://oomcxsfikujptkfsqgzi.supabase.co/functions/v1/user-bootstrap", {
    method: "POST",
@@ -184,8 +186,8 @@ function scheduleProactiveRefresh() {
 }
 
 /** Ensure token exists and is not too close to expiry */
-async function ensureFreshToken() {
-  const EMAIL = __currentEmail();
+async function ensureFreshToken(emailOverride = "") {
+  const EMAIL = (emailOverride || __currentEmail() || "").toLowerCase();
   const cachedEmail = (window.__U?.cwt_email || "").toLowerCase();
   if (EMAIL && cachedEmail && EMAIL !== cachedEmail) {
     window.__U.cwt = null;
@@ -193,7 +195,7 @@ async function ensureFreshToken() {
   }
   const now = Math.floor(Date.now() / 1000);
   if (!window.__U?.cwt || window.__U.cwt_expires_at - now <= 150) {
-    __refreshing ??= refreshCWT().finally(() => {
+    __refreshing ??= refreshCWT(EMAIL).finally(() => {
       __refreshing = null;
     });
     await __refreshing;
