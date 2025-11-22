@@ -425,9 +425,6 @@ function bindPlacementListeners() {
 }
 
 function findCourseContainer() {
-  const explicitHost = document.getElementById('um-course-cta-host');
-  if (explicitHost instanceof HTMLElement) return explicitHost;
-
   const selectors = [
     '.softr-grid-container',
     '[data-block-id*="course"] div[role="list"]',
