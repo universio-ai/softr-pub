@@ -345,6 +345,12 @@ function resolveTierSignals() {
 if (window.__umCtaScriptOnce) { return; }
 window.__umCtaScriptOnce = true;
 
+  // Enable verbose CTA tracing by default for this run; set window.__UM_DEBUG_CTA = false
+  // before this script executes to silence.
+  if (typeof window.__UM_DEBUG_CTA === 'undefined') {
+    window.__UM_DEBUG_CTA = true;
+  }
+
   // Softr course pages don't always have a URL that starts with the course code
   // (e.g., some use `/courses/C004/...`). Treat the presence of the UM marker
   // or any detectable course code in the URL as a signal to run the CTA logic.
@@ -393,19 +399,54 @@ function normalizeCourseId(id = "") {
   return m ? m[0].toUpperCase() : trimmed.toUpperCase();
 }
 
+function pickNumeric(obj, keys, fallback = 0) {
+  if (!obj) return fallback;
+  for (const k of keys) {
+    const raw = obj[k];
+    const n = Number(raw);
+    if (!Number.isNaN(n)) return n;
+  }
+  return fallback;
+}
+
+function isTruthy(obj, keys) {
+  if (!obj) return false;
+  return keys.some((k) => !!obj[k]);
+}
+
 function isCourseCompleted(cid) {
   if (!cid) return false;
   const normCid = normalizeCourseId(cid);
 
   const progress = Array.isArray(window.__U?.progress) ? window.__U.progress : [];
   const progHit = progress.find((p) => normalizeCourseId(p.course_id) === normCid);
-  if (progHit?.completed || Number(progHit?.percent_complete || 0) >= 100) return true;
+  if (progHit) {
+    const percent = pickNumeric(progHit, ["percent_complete", "percentComplete", "completion_percent", "progress_percent", "progressPercent"]);
+    if (
+      isTruthy(progHit, ["completed", "completed_at", "completedAt", "completion_date", "completionDate", "is_complete", "isComplete"]) ||
+      percent >= 100 ||
+      String(progHit?.status || progHit?.state || "").toLowerCase() === "completed"
+    ) {
+      return true;
+    }
+  }
 
   const stats = Array.isArray(window.__U?.entitlements?.courses?.stats)
     ? window.__U.entitlements.courses.stats
     : [];
   const statHit = stats.find((s) => normalizeCourseId(s.course_id) === normCid);
-  return Number(statHit?.percent_complete || 0) >= 100;
+  if (statHit) {
+    const percent = pickNumeric(statHit, ["percent_complete", "percentComplete", "completion_percent", "progress_percent", "progressPercent"]);
+    if (
+      percent >= 100 ||
+      isTruthy(statHit, ["completed", "completed_at", "completedAt", "is_complete", "isComplete"]) ||
+      String(statHit?.status || statHit?.state || "").toLowerCase() === "completed"
+    ) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function getCourseStartHint(cid) {
@@ -419,9 +460,21 @@ function getCourseStartHint(cid) {
 
   const hint = hints[normCid] || null;
   const progHit = progress.find((p) => normalizeCourseId(p.course_id) === normCid);
-  const startedFromProgress = !!progHit && (progHit.started || Number(progHit.percent_complete || 0) > 0);
+  const progPercent = pickNumeric(progHit, ["percent_complete", "percentComplete", "completion_percent", "progress_percent", "progressPercent"]);
+  const startedFromProgress = !!progHit && (
+    progHit.started ||
+    progPercent > 0 ||
+    isTruthy(progHit, ["started_at", "startedAt", "last_viewed_at", "lastViewedAt", "last_activity_at", "lastActivityAt"]) ||
+    String(progHit?.status || progHit?.state || "").toLowerCase() === "in_progress"
+  );
+
   const statHit = stats.find((s) => normalizeCourseId(s.course_id) === normCid);
-  const startedFromStats = Number(statHit?.percent_complete || 0) > 0;
+  const statPercent = pickNumeric(statHit, ["percent_complete", "percentComplete", "completion_percent", "progress_percent", "progressPercent"]);
+  const startedFromStats = !!statHit && (
+    statPercent > 0 ||
+    isTruthy(statHit, ["started", "started_at", "startedAt"]) ||
+    String(statHit?.status || statHit?.state || "").toLowerCase() === "in_progress"
+  );
 
   const lastMatch = last && normalizeCourseId(last.course_id || last.graphId) === normCid;
   const resumeFromLast = lastMatch
@@ -439,6 +492,20 @@ function getCourseStartHint(cid) {
       resumeFromLast ||
       startUrlFor(normCid)
   );
+
+  if (window.__UM_DEBUG_CTA) {
+    console.debug("[UM] start hint signals", {
+      cid: normCid,
+      hint,
+      progHit,
+      progPercent,
+      statHit,
+      statPercent,
+      last,
+      alreadyStarted,
+      resumeUrl,
+    });
+  }
 
   return { alreadyStarted, resumeUrl };
 }
