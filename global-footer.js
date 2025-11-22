@@ -600,6 +600,15 @@ function getCourseStartHint(cid) {
       startUrlFor(normCid)
   );
 
+  const evidence = {
+    hint: !!hint,
+    progHit: !!progHit,
+    statHit: !!statHit,
+    lastMatch: !!lastMatch,
+    entNode: !!entNode,
+    activeCourse: activeCourses.has(normCid),
+  };
+
   if (window.__UM_DEBUG_CTA) {
     console.debug("[UM] start hint signals", {
       cid: normCid,
@@ -610,12 +619,13 @@ function getCourseStartHint(cid) {
       statPercent,
       last,
       entNode,
+      evidence,
       alreadyStarted,
       resumeUrl,
     });
   }
 
-  return { alreadyStarted, resumeUrl };
+  return { alreadyStarted, resumeUrl, evidence };
 }
 
 const CERT_LINK_CACHE = new Map();
@@ -863,7 +873,7 @@ function setMessage(text = '') {
 
 setLoadingState(ensureBtn());
 
-function injectBtn() {
+function injectBtn(attempt = 0, maxAttempts = 1) {
   const btn = ensureBtn();
   const U = window.__U || {};
   const ent = U.entitlements;
@@ -879,8 +889,9 @@ function injectBtn() {
   }
 
   const startHint = getCourseStartHint(cid);
+  const completionDetected = isCourseCompleted(cid);
 
-  if (isCourseCompleted(cid)) {
+  if (completionDetected) {
     setLoadingState(btn, "Completed – loading certificate…");
     resolveCourseCertificateUrl(cid)
       .catch((err) => {
@@ -936,17 +947,43 @@ function injectBtn() {
 
   const already = !!startHint.alreadyStarted;
   const label = already ? 'Resume' : 'Start';
+  const hasEvidence = Object.values(startHint.evidence || {}).some(Boolean);
 
   setReadyState(btn, label, startHint.resumeUrl);
   placeBtnWrapper();
     console.debug('[UM] CTA decision', { cid, tier, label, resumeUrl: startHint.resumeUrl, signals, samplerAllowed: [...samplerAllowed], already });
-  return true;
+
+  const settled =
+    completionDetected ||
+    already ||
+    hasEvidence ||
+    tier === 'sampler' ||
+    attempt >= maxAttempts;
+
+  if (!settled && window.__UM_DEBUG_CTA) {
+    console.debug('[UM] CTA awaiting signals', { cid, attempt, maxAttempts });
+  }
+
+  return settled;
 
 }
 function watchAndInject(){
-  const observer=new MutationObserver(()=>injectBtn()&&observer.disconnect());
+  let attempts = 0;
+  const MAX_ATTEMPTS = 15;
+  const observer=new MutationObserver(()=>injectBtn(++attempts, MAX_ATTEMPTS)&&observer.disconnect());
   observer.observe(document.body,{childList:true,subtree:true});
-  injectBtn();
+
+  const interval = setInterval(() => {
+    if (injectBtn(++attempts, MAX_ATTEMPTS)) {
+      observer.disconnect();
+      clearInterval(interval);
+    }
+    if (attempts >= MAX_ATTEMPTS) {
+      clearInterval(interval);
+    }
+  }, 600);
+
+  injectBtn(attempts, MAX_ATTEMPTS) && observer.disconnect();
 }
 
   if(window.__U?.entitlements) watchAndInject();
