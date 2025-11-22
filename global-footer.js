@@ -533,8 +533,11 @@ function injectBtn() {
   const hints = U.courseHints || {};
   const hint = hints[cid];
 
-  const tier = String(ent.plan?.tier || 'sampler').toLowerCase();
-  const samplerAllowed = new Set(ent.courses?.sampler_allowed || []);
+  const FALLBACK_SAMPLER_ALLOWED = ['C001','C002','C003'];
+  const tier = String(ent.plan?.tier || 'sampler').trim().toLowerCase();
+  const samplerAllowed = new Set(
+    (ent.courses?.sampler_allowed || FALLBACK_SAMPLER_ALLOWED).map(up)
+  );
   const activeCourses = new Set(ent.courses?.active_courses || []);
   const isActive = activeCourses.has(cid);
   const activeSlots = Number(ent.courses?.active_slots || 0);
@@ -629,10 +632,13 @@ function watchAndInject(){
 
   function gate(){
     const U = window.__U||{}; const ent = U.entitlements; if (!ent) return;
-    const tier = String(ent.plan?.tier || 'sampler').toLowerCase(); if (tier !== 'sampler') return;
+    const FALLBACK_SAMPLER_ALLOWED = ['C001','C002','C003'];
+    const tier = String(ent.plan?.tier || 'sampler').trim().toLowerCase(); if (tier !== 'sampler') return;
 
     const cid = courseId(); if (!cid) return;
-    const allowed = new Set(ent.courses?.sampler_allowed || []);
+    const allowed = new Set(
+      (ent.courses?.sampler_allowed || FALLBACK_SAMPLER_ALLOWED).map(up)
+    );
     if (!allowed.has(cid)) { lock(`Sampler includes C001–C003 only. <code>${cid}</code> is a full course.`); return; }
 
     const limit = +ent.courses?.sampler_module_limit || 3;
