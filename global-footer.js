@@ -535,9 +535,9 @@ function injectBtn() {
 
   const BASE_SAMPLER_ALLOWED = ['C001','C002','C003'];
   const rawTier = String(
+    // Rely solely on entitlements for gating to avoid stale Softr billing data
+    // accidentally upgrading/downgrading eligibility.
     ent.plan?.tier ||
-    window.logged_in_user?.billing_plan_type ||
-    window.logged_in_user?.billing_plan ||
     'sampler'
   ).trim().toLowerCase();
   const tier = ['basic','plus','pro'].includes(rawTier) ? rawTier : 'sampler';
@@ -646,9 +646,8 @@ function watchAndInject(){
     const U = window.__U||{}; const ent = U.entitlements; if (!ent) return;
     const FALLBACK_SAMPLER_ALLOWED = ['C001','C002','C003'];
     const rawTier = String(
+      // Only trust entitlements; ignore Softr billing fields that may be stale.
       ent.plan?.tier ||
-      window.logged_in_user?.billing_plan_type ||
-      window.logged_in_user?.billing_plan ||
       'sampler'
     ).trim().toLowerCase();
     const tier = ['basic','plus','pro'].includes(rawTier) ? rawTier : 'sampler';
