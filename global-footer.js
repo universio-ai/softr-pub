@@ -533,7 +533,7 @@ function injectBtn() {
   const hints = U.courseHints || {};
   const hint = hints[cid];
 
-  const FALLBACK_SAMPLER_ALLOWED = ['C001','C002','C003'];
+  const BASE_SAMPLER_ALLOWED = ['C001','C002','C003'];
   const rawTier = String(
     ent.plan?.tier ||
     window.logged_in_user?.billing_plan_type ||
@@ -543,10 +543,12 @@ function injectBtn() {
   const tier = ['basic','plus','pro'].includes(rawTier) ? rawTier : 'sampler';
   const samplerAllowedRaw = Array.isArray(ent.courses?.sampler_allowed)
     ? ent.courses.sampler_allowed
-    : FALLBACK_SAMPLER_ALLOWED;
-  const samplerAllowedList = samplerAllowedRaw.length ? samplerAllowedRaw : FALLBACK_SAMPLER_ALLOWED;
+    : BASE_SAMPLER_ALLOWED;
+  const samplerAllowedList = samplerAllowedRaw.length ? samplerAllowedRaw : BASE_SAMPLER_ALLOWED;
   const samplerAllowed = new Set(
-    samplerAllowedList.map(up)
+    samplerAllowedList
+      .map(up)
+      .filter((id)=>BASE_SAMPLER_ALLOWED.includes(id))
   );
   const activeCourses = new Set(ent.courses?.active_courses || []);
   const isActive = activeCourses.has(cid);
@@ -557,8 +559,8 @@ function injectBtn() {
   if (tier === 'sampler' && !samplerAllowed.has(cid)) {
     setBlockedState(
       btn,
-      'Upgrade to start',
-      () => (location.href = '/pricing'),
+      'Unavailable',
+      null,
       'Sampler includes C001–C003 only. Upgrade to access full courses.'
     );
     placeBtnWrapper();
@@ -658,7 +660,9 @@ function watchAndInject(){
       : FALLBACK_SAMPLER_ALLOWED;
     const samplerAllowedList = samplerAllowedRaw.length ? samplerAllowedRaw : FALLBACK_SAMPLER_ALLOWED;
     const allowed = new Set(
-      samplerAllowedList.map(up)
+      samplerAllowedList
+        .map(up)
+        .filter((id)=>FALLBACK_SAMPLER_ALLOWED.includes(id))
     );
     if (!allowed.has(cid)) { lock(`Sampler includes C001–C003 only. <code>${cid}</code> is a full course.`); return; }
 
