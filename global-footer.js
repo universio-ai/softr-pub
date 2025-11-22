@@ -97,6 +97,7 @@ function __toEpochSeconds(v) {
 
     const data = out.data;
 window.__U.cwt = out.data?.cwt || out.cwt;
+window.__U.cwt_email = EMAIL;
 window.__U.cwt_expires_at = __toEpochSeconds(out.data?.cwt_expires_at || out.cwt_expires_at);
 // no direct call here; the Auth Wrapper will schedule (and also auto-runs if CWT already set)
 
@@ -131,6 +132,14 @@ window.__U.cwt_expires_at = __toEpochSeconds(out.data?.cwt_expires_at || out.cwt
 window.__U = window.__U || {};
 let __refreshing = null;
 
+function __currentEmail() {
+  return (
+    window.logged_in_user?.softr_user_email ||
+    window.logged_in_user?.email ||
+    ""
+  ).toLowerCase();
+}
+
 /** Build auth headers for any edge call */
 function authHeaders(init = {}) {
   const h = new Headers(init.headers || {});
@@ -144,7 +153,8 @@ function authHeaders(init = {}) {
 
 /** Call bootstrap edge to mint/refresh CWT */
 async function refreshCWT() {
- const EMAIL = (window.logged_in_user?.softr_user_email || "").toLowerCase();
+ const EMAIL = __currentEmail();
+ if (!EMAIL) throw new Error("no email available for CWT refresh");
  const res = await fetch("https://oomcxsfikujptkfsqgzi.supabase.co/functions/v1/user-bootstrap", {
    method: "POST",
    headers: { "Content-Type": "application/json" },
@@ -153,7 +163,8 @@ async function refreshCWT() {
  if (!res.ok) throw new Error("bootstrap refresh failed");
  const out = await res.json();
  window.__U.cwt = out.data?.cwt;
- window.__U.cwt_expires_at = __toEpochSeconds(out.data?.cwt_expires_at);
+  window.__U.cwt_email = EMAIL;
+  window.__U.cwt_expires_at = __toEpochSeconds(out.data?.cwt_expires_at);
   scheduleProactiveRefresh();
 }
 
@@ -174,6 +185,12 @@ function scheduleProactiveRefresh() {
 
 /** Ensure token exists and is not too close to expiry */
 async function ensureFreshToken() {
+  const EMAIL = __currentEmail();
+  const cachedEmail = (window.__U?.cwt_email || "").toLowerCase();
+  if (EMAIL && cachedEmail && EMAIL !== cachedEmail) {
+    window.__U.cwt = null;
+    window.__U.cwt_expires_at = 0;
+  }
   const now = Math.floor(Date.now() / 1000);
   if (!window.__U?.cwt || window.__U.cwt_expires_at - now <= 150) {
     __refreshing ??= refreshCWT().finally(() => {
