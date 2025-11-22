@@ -408,6 +408,31 @@ function isCourseCompleted(cid) {
   return Number(statHit?.percent_complete || 0) >= 100;
 }
 
+function getCourseStartHint(cid) {
+  const normCid = normalizeCourseId(cid);
+  const hints = window.__U?.courseHints || {};
+  const progress = Array.isArray(window.__U?.progress) ? window.__U.progress : [];
+  const last = window.__U?.last || null;
+
+  const hint = hints[normCid] || null;
+  const progHit = progress.find((p) => normalizeCourseId(p.course_id) === normCid);
+  const startedFromProgress = !!progHit && (progHit.started || Number(progHit.percent_complete || 0) > 0);
+
+  const lastMatch = last && normalizeCourseId(last.course_id || last.graphId) === normCid;
+  const resumeFromLast = lastMatch
+    ? `/classroom?graph=${normCid}&node=${(last.node_id || last.nodeId || "").toString().toUpperCase()}`
+    : null;
+
+  const alreadyStarted = !!(hint?.alreadyStarted || startedFromProgress || lastMatch);
+  const resumeUrl = normalizeUrl(
+    hint?.resumeUrl ||
+      resumeFromLast ||
+      startUrlFor(normCid)
+  );
+
+  return { alreadyStarted, resumeUrl };
+}
+
 const CERT_LINK_CACHE = new Map();
 const BOOTSTRAP_URL = "https://oomcxsfikujptkfsqgzi.supabase.co/functions/v1/user-bootstrap";
 
@@ -668,8 +693,23 @@ function injectBtn() {
     return false;
   }
 
-  const hints = U.courseHints || {};
-  const hint = hints[cid];
+  const startHint = getCourseStartHint(cid);
+
+  if (isCourseCompleted(cid)) {
+    setLoadingState(btn, "Completed – loading certificate…");
+    resolveCourseCertificateUrl(cid)
+      .catch((err) => {
+        console.warn("[UM] unable to resolve course certificate", err);
+        return "/certificate";
+      })
+      .then((url) => {
+        const target = normalizeUrl(url || "/certificate");
+        setReadyState(btn, "Completed • View Certificate", target);
+        placeBtnWrapper();
+      });
+    placeBtnWrapper();
+    return true;
+  }
 
   if (isCourseCompleted(cid)) {
     setLoadingState(btn, "Completed – loading certificate…");
@@ -725,19 +765,12 @@ function injectBtn() {
     return true;
   }
 
-  let resumeUrl;
-  if (hint?.alreadyStarted) {
-    resumeUrl = normalizeUrl(hint?.resumeUrl || startUrlFor(cid));
-  } else {
-    resumeUrl = normalizeUrl(startUrlFor(cid));
-  }
-
-  const already = !!hint?.alreadyStarted;
+  const already = !!startHint.alreadyStarted;
   const label = already ? 'Resume' : 'Start';
 
-  setReadyState(btn, label, resumeUrl);
+  setReadyState(btn, label, startHint.resumeUrl);
   placeBtnWrapper();
-  console.debug('[UM] CTA decision', { cid, tier, label, resumeUrl, signals, samplerAllowed: [...samplerAllowed], already });
+    console.debug('[UM] CTA decision', { cid, tier, label, resumeUrl: startHint.resumeUrl, signals, samplerAllowed: [...samplerAllowed], already });
   return true;
 
 }
