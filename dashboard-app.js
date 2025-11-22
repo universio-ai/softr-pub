@@ -305,7 +305,11 @@ function toggleGridsUnified(){
 
   const CACHE_KEY='um.dashboard.gridStates';
   const readCache=()=>{try{return JSON.parse(sessionStorage.getItem(CACHE_KEY)||'null');}catch{return null;}};
-  const writeCache=states=>{try{sessionStorage.setItem(CACHE_KEY,JSON.stringify({states,ts:Date.now()}));}catch{}};
+  const writeCache=(states,email)=>{
+    try{
+      sessionStorage.setItem(CACHE_KEY,JSON.stringify({states,email:email||null,ts:Date.now()}));
+    }catch{}
+  };
 
   // Keep the opening loader around until we have a final decision
   const LOADER_ID='um-grid-loading';
@@ -402,6 +406,8 @@ function toggleGridsUnified(){
 
   console.groupCollapsed("🔍 Universio Dashboard Debug");
 
+  let resolvedEmail=null;
+
   let finalized=false, closed=false;
   const end=()=>{ if(!closed){ console.groupEnd(); closed=true; } };
 
@@ -418,7 +424,7 @@ function toggleGridsUnified(){
     clearTimeout(finalGuard);
     console.debug(label, states);
     applyStates(states,label);
-    if(cache) writeCache(states);
+    if(cache) writeCache(states,resolvedEmail);
     // Ensure the loader is gone even if visibility checks fail (e.g., all grids hidden)
     setTimeout(hideLoader,220);
     end();
@@ -426,27 +432,26 @@ function toggleGridsUnified(){
 
   // If Supabase is slow, use a temporary fallback that remains overridable.
   // Cancelled the moment we finalize so it cannot overwrite real data.
-  const fallbackTimer = (readCache()?.states)
-    ? null
-    : setTimeout(()=>{
-        console.debug("⏳ Still waiting on Supabase; keeping loader active and grids hidden");
-      },2200);
+  const fallbackTimer = setTimeout(()=>{
+    console.debug("⏳ Still waiting on Supabase; keeping loader active and grids hidden");
+  },2200);
 
   // Safety guard: prefer cached states when available; never cache a forced fallback.
   const finalGuard=setTimeout(()=>{
     if(finalized) return;
     const cached=readCache();
-    if(cached?.states){
+    if(cached?.states && cached?.email && cached.email===resolvedEmail){
       applyFinal(cached.states,"Final grid state (cached timeout)");
       return;
     }
     applyFinal(showFreshUser(),"Final grid state (timeout; not cached)",false);
   },12000);
 
+  // Default to the fresh-user experience until we know which user is logged in.
+  // This avoids showing another user's cached grids when accounts switch.
+  applyTemp(showFreshUser(), "Applying fresh-user defaults while resolving user");
+
   const cached=readCache();
-  if(cached?.states){
-    applyTemp(cached.states, "Applying cached grid states");
-  }
 
   const resolveUserContext = (timeoutMs=12000)=>new Promise(resolve=>{
     const start=Date.now();
@@ -475,17 +480,25 @@ function toggleGridsUnified(){
       resolveUserContext().then(ctx=>{
         if(finalized) return;
         if(!ctx){
-          if(cached?.states){
-            applyFinal(cached.states,`Final grid state (no email; using cache; attempt ${attempt}/${maxAttempts})`);
-          }else{
-            applyFinal(showFreshUser(),`Final grid state (no email; attempt ${attempt}/${maxAttempts})`,false);
-          }
+          applyFinal(showFreshUser(),`Final grid state (no email; attempt ${attempt}/${maxAttempts})`,false);
           if(attempt<maxAttempts){
             setTimeout(()=>startUserResolution(attempt+1,maxAttempts),1200);
           }
           return;
         }
         const {email} = ctx;
+        resolvedEmail=email;
+
+        // If the cached email doesn't match this session, drop the cache so
+        // grids can't be borrowed from another user. If it matches, reuse it
+        // while we wait for Supabase to respond.
+        if(cached?.states){
+          if(cached.email && cached.email===email){
+            applyTemp(cached.states, "Applying cached grid states for user");
+          }else{
+            sessionStorage.removeItem(CACHE_KEY);
+          }
+        }
 
         const fetcher=(typeof apiFetch==="function")?apiFetch:fetch;
         const headers=new Headers({"Content-Type":"application/json"});
