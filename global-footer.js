@@ -412,18 +412,28 @@ function getCourseStartHint(cid) {
   const normCid = normalizeCourseId(cid);
   const hints = window.__U?.courseHints || {};
   const progress = Array.isArray(window.__U?.progress) ? window.__U.progress : [];
+  const stats = Array.isArray(window.__U?.entitlements?.courses?.stats)
+    ? window.__U.entitlements.courses.stats
+    : [];
   const last = window.__U?.last || null;
 
   const hint = hints[normCid] || null;
   const progHit = progress.find((p) => normalizeCourseId(p.course_id) === normCid);
   const startedFromProgress = !!progHit && (progHit.started || Number(progHit.percent_complete || 0) > 0);
+  const statHit = stats.find((s) => normalizeCourseId(s.course_id) === normCid);
+  const startedFromStats = Number(statHit?.percent_complete || 0) > 0;
 
   const lastMatch = last && normalizeCourseId(last.course_id || last.graphId) === normCid;
   const resumeFromLast = lastMatch
     ? `/classroom?graph=${normCid}&node=${(last.node_id || last.nodeId || "").toString().toUpperCase()}`
     : null;
 
-  const alreadyStarted = !!(hint?.alreadyStarted || startedFromProgress || lastMatch);
+  const alreadyStarted = !!(
+    hint?.alreadyStarted ||
+    startedFromProgress ||
+    startedFromStats ||
+    lastMatch
+  );
   const resumeUrl = normalizeUrl(
     hint?.resumeUrl ||
       resumeFromLast ||
@@ -694,22 +704,6 @@ function injectBtn() {
   }
 
   const startHint = getCourseStartHint(cid);
-
-  if (isCourseCompleted(cid)) {
-    setLoadingState(btn, "Completed – loading certificate…");
-    resolveCourseCertificateUrl(cid)
-      .catch((err) => {
-        console.warn("[UM] unable to resolve course certificate", err);
-        return "/certificate";
-      })
-      .then((url) => {
-        const target = normalizeUrl(url || "/certificate");
-        setReadyState(btn, "Completed • View Certificate", target);
-        placeBtnWrapper();
-      });
-    placeBtnWrapper();
-    return true;
-  }
 
   if (isCourseCompleted(cid)) {
     setLoadingState(btn, "Completed – loading certificate…");
