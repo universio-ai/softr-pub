@@ -431,6 +431,15 @@ function normalizeCourseId(id = "") {
   return m ? m[0].toUpperCase() : trimmed.toUpperCase();
 }
 
+function certEnrollmentForCourse(cid) {
+  const normCid = normalizeCourseId(cid);
+  if (!normCid) return null;
+  const enrollments = Array.isArray(window.__U?.entitlements?.certificate_enrollments)
+    ? window.__U.entitlements.certificate_enrollments
+    : [];
+  return enrollments.find((enr) => normalizeCourseId(enr?.cert_id || enr?.certId || enr?.course_id) === normCid) || null;
+}
+
 function entCourseStats(ent = {}) {
   const stats = [];
   const courses = ent.courses || {};
@@ -508,6 +517,15 @@ function isCourseCompleted(cid) {
   if (!cid) return false;
   const normCid = normalizeCourseId(cid);
 
+  const certEnrollment = certEnrollmentForCourse(normCid);
+  if (certEnrollment) {
+    const status = String(certEnrollment.status || certEnrollment.state || "").toLowerCase();
+    const hasCertUrl = typeof certEnrollment.cert_url === "string" && certEnrollment.cert_url.trim();
+    if (status === "completed" || status === "complete" || hasCertUrl) {
+      return true;
+    }
+  }
+
   const progress = Array.isArray(window.__U?.progress) ? window.__U.progress : [];
   const progHit = progress.find((p) => normalizeCourseId(p.course_id) === normCid);
   if (progHit) {
@@ -558,6 +576,7 @@ function getCourseStartHint(cid) {
   const ent = window.__U?.entitlements || {};
   const activeCourses = new Set((ent.courses?.active_courses || []).map(normalizeCourseId));
   const entNode = entResumeNode(ent, normCid);
+  const certEnrollment = certEnrollmentForCourse(normCid);
 
   const resumeFromEntNode = entNode
     ? `/classroom?graph=${normCid}&node=${entNode}`
@@ -586,12 +605,16 @@ function getCourseStartHint(cid) {
     ? `/classroom?graph=${normCid}&node=${(last.node_id || last.nodeId || "").toString().toUpperCase()}`
     : null;
 
+  const enrollmentStatus = String(certEnrollment?.status || certEnrollment?.state || "").toLowerCase();
+  const enrollmentShowsProgress = enrollmentStatus === 'in progress' || enrollmentStatus === 'started';
+
   const alreadyStarted = !!(
     hint?.alreadyStarted ||
     startedFromProgress ||
     startedFromStats ||
     lastMatch ||
-    activeCourses.has(normCid)
+    activeCourses.has(normCid) ||
+    enrollmentShowsProgress
   );
   const resumeUrl = normalizeUrl(
     hint?.resumeUrl ||
@@ -607,22 +630,27 @@ function getCourseStartHint(cid) {
     lastMatch: !!lastMatch,
     entNode: !!entNode,
     activeCourse: activeCourses.has(normCid),
+    certEnrollment: !!certEnrollment,
   };
 
   if (window.__UM_DEBUG_CTA) {
-    console.debug("[UM] start hint signals", {
-      cid: normCid,
-      hint,
-      progHit,
-      progPercent,
-      statHit,
-      statPercent,
-      last,
-      entNode,
-      evidence,
-      alreadyStarted,
-      resumeUrl,
-    });
+    const snapshot = JSON.stringify({ cid: normCid, evidence, alreadyStarted, resumeUrl });
+    if (snapshot !== LAST_START_LOG) {
+      LAST_START_LOG = snapshot;
+      console.debug("[UM] start hint signals", {
+        cid: normCid,
+        hint,
+        progHit,
+        progPercent,
+        statHit,
+        statPercent,
+        last,
+        entNode,
+        evidence,
+        alreadyStarted,
+        resumeUrl,
+      });
+    }
   }
 
   return { alreadyStarted, resumeUrl, evidence };
@@ -697,6 +725,17 @@ let CTADomObserver = null;
 let CTA_MSG = null;
 let CTACompletionObserver = null;
 let CTACompletionFired = false;
+let LAST_START_LOG = '';
+let LAST_DECISION_LOG = '';
+let LAST_AWAIT_LOG = -1;
+
+function logDecision(payload) {
+  if (!window.__UM_DEBUG_CTA) return;
+  const snapshot = JSON.stringify(payload);
+  if (snapshot === LAST_DECISION_LOG) return;
+  LAST_DECISION_LOG = snapshot;
+  console.debug('[UM] CTA decision', payload);
+}
 
 function ensureBtn() {
   if (CTA_BTN) return CTA_BTN;
@@ -786,7 +825,7 @@ function bindPlacementListeners() {
 
 function findCourseContainer() {
   const host = document.getElementById('um-course-cta-host');
-  if (host) return host;
+  if (host) return { el: host, mode: 'host' };
 
   const selectors = [
     '.softr-grid-container',
@@ -810,19 +849,28 @@ function findCourseContainer() {
       bestBottom = rect.bottom;
     }
   }
-  return best;
+  return { el: best, mode: 'after' };
 }
 
 function placeBtnWrapper() {
   const wrapper = CTA_WRAPPER;
   if (!wrapper) return;
 
-  const target = findCourseContainer();
+  const targetInfo = findCourseContainer();
+  const target = targetInfo?.el || null;
   const fallbackParent = document.querySelector('main') || document.body;
 
   if (!target || !target.parentNode) {
     if (wrapper.parentNode !== fallbackParent) {
       fallbackParent.appendChild(wrapper);
+    }
+    return;
+  }
+
+  if (targetInfo?.mode === 'host') {
+    if (wrapper.parentNode !== target) {
+      target.innerHTML = '';
+      target.appendChild(wrapper);
     }
     return;
   }
@@ -967,7 +1015,7 @@ function injectBtn(attempt = 0, maxAttempts = 1) {
       'Sampler includes C001–C003 only. Upgrade to access full courses.'
     );
     placeBtnWrapper();
-    console.debug('[UM] CTA decision', { cid, tier, reason: 'sampler-blocked', signals, samplerAllowed: [...samplerAllowed] });
+    logDecision({ cid, tier, reason: 'sampler-blocked', signals, samplerAllowed: [...samplerAllowed] });
     return true;
   }
 
@@ -986,7 +1034,7 @@ function injectBtn(attempt = 0, maxAttempts = 1) {
 
   setReadyState(btn, label, startHint.resumeUrl);
   placeBtnWrapper();
-    console.debug('[UM] CTA decision', { cid, tier, label, resumeUrl: startHint.resumeUrl, signals, samplerAllowed: [...samplerAllowed], already });
+    logDecision({ cid, tier, label, resumeUrl: startHint.resumeUrl, signals, samplerAllowed: [...samplerAllowed], already });
 
   const settled =
     completionDetected ||
@@ -995,7 +1043,8 @@ function injectBtn(attempt = 0, maxAttempts = 1) {
     tier === 'sampler' ||
     attempt >= maxAttempts;
 
-  if (!settled && window.__UM_DEBUG_CTA) {
+  if (!settled && window.__UM_DEBUG_CTA && attempt !== LAST_AWAIT_LOG) {
+    LAST_AWAIT_LOG = attempt;
     console.debug('[UM] CTA awaiting signals', { cid, attempt, maxAttempts });
   }
 
