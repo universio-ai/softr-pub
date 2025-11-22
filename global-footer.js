@@ -695,6 +695,8 @@ let CTA_WRAPPER = null;
 let CTAPlacementBound = false;
 let CTADomObserver = null;
 let CTA_MSG = null;
+let CTACompletionObserver = null;
+let CTACompletionFired = false;
 
 function ensureBtn() {
   if (CTA_BTN) return CTA_BTN;
@@ -783,6 +785,9 @@ function bindPlacementListeners() {
 }
 
 function findCourseContainer() {
+  const host = document.getElementById('um-course-cta-host');
+  if (host) return host;
+
   const selectors = [
     '.softr-grid-container',
     '[data-block-id*="course"] div[role="list"]',
@@ -873,17 +878,57 @@ function setMessage(text = '') {
 
 setLoadingState(ensureBtn());
 
+function handleCompletion(cid) {
+  const btn = ensureBtn();
+  setLoadingState(btn, "Completed – loading certificate…");
+  resolveCourseCertificateUrl(cid)
+    .catch((err) => {
+      console.warn("[UM] unable to resolve course certificate", err);
+      return "/certificate";
+    })
+    .then((url) => {
+      const target = normalizeUrl(url || "/certificate");
+      setReadyState(btn, "Completed • View Certificate", target);
+      placeBtnWrapper();
+    });
+  placeBtnWrapper();
+}
+
+function ensureCompletionWatcher(cid) {
+  if (CTACompletionObserver || CTACompletionFired) return;
+  CTACompletionObserver = new MutationObserver(() => {
+    if (CTACompletionFired) return;
+    if (!domShowsCompletion()) return;
+    CTACompletionFired = true;
+    CTACompletionObserver.disconnect();
+    CTACompletionObserver = null;
+    handleCompletion(cid);
+  });
+  CTACompletionObserver.observe(document.body, {
+    childList: true,
+    subtree: true,
+    characterData: true,
+  });
+}
+
 function injectBtn(attempt = 0, maxAttempts = 1) {
   const btn = ensureBtn();
-  const U = window.__U || {};
-  const ent = U.entitlements;
-  if (!ent) {
+  const cid = getCourseId();
+  if (!cid) {
     setLoadingState(btn);
     return false;
   }
 
-  const cid = getCourseId();
-  if (!cid) {
+  ensureCompletionWatcher(cid);
+
+  const U = window.__U || {};
+  const ent = U.entitlements;
+  if (!ent) {
+    if (domShowsCompletion()) {
+      CTACompletionFired = true;
+      handleCompletion(cid);
+      return true;
+    }
     setLoadingState(btn);
     return false;
   }
@@ -892,18 +937,8 @@ function injectBtn(attempt = 0, maxAttempts = 1) {
   const completionDetected = isCourseCompleted(cid);
 
   if (completionDetected) {
-    setLoadingState(btn, "Completed – loading certificate…");
-    resolveCourseCertificateUrl(cid)
-      .catch((err) => {
-        console.warn("[UM] unable to resolve course certificate", err);
-        return "/certificate";
-      })
-      .then((url) => {
-        const target = normalizeUrl(url || "/certificate");
-        setReadyState(btn, "Completed • View Certificate", target);
-        placeBtnWrapper();
-      });
-    placeBtnWrapper();
+    CTACompletionFired = true;
+    handleCompletion(cid);
     return true;
   }
 
