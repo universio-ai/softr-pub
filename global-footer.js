@@ -324,6 +324,33 @@ function normalizeTier(value){
   return 'sampler';
 }
 
+function resolveTierSignals() {
+  const U = window.__U || {};
+  const ent = U.entitlements || {};
+  const signals = {
+    ent_tier: ent.plan?.tier,
+    profile_plan_code: U.profile?.plan_code,
+    profile_plan_name: U.profile?.plan_name,
+    profile_billing: U.profile?.billing_plan_type,
+    softr_plan_code: window.logged_in_user?.plan_code,
+    softr_plan_name: window.logged_in_user?.plan_name,
+    softr_billing: window.logged_in_user?.billing_plan_type,
+  };
+
+  const tier = normalizeTier(
+    signals.ent_tier ||
+      signals.profile_plan_code ||
+      signals.profile_plan_name ||
+      signals.profile_billing ||
+      signals.softr_plan_code ||
+      signals.softr_plan_name ||
+      signals.softr_billing ||
+      'sampler'
+  );
+
+  return { tier, signals };
+}
+
 (function () {
 if (window.__umCtaScriptOnce) { return; }
 window.__umCtaScriptOnce = true;
@@ -571,16 +598,7 @@ function injectBtn() {
   const hint = hints[cid];
 
   const BASE_SAMPLER_ALLOWED = ['C001','C002','C003'];
-  const tier = normalizeTier(
-    ent.plan?.tier ||
-    U.profile?.plan_code ||
-    U.profile?.plan_name ||
-    U.profile?.billing_plan_type ||
-    window.logged_in_user?.plan_code ||
-    window.logged_in_user?.plan_name ||
-    window.logged_in_user?.billing_plan_type ||
-    'sampler'
-  );
+  const { tier, signals } = resolveTierSignals();
   const samplerAllowedRaw = Array.isArray(ent.courses?.sampler_allowed)
     ? ent.courses.sampler_allowed
     : BASE_SAMPLER_ALLOWED;
@@ -604,6 +622,7 @@ function injectBtn() {
       'Sampler includes C001–C003 only. Upgrade to access full courses.'
     );
     placeBtnWrapper();
+    console.debug('[UM] CTA decision', { cid, tier, reason: 'sampler-blocked', signals, samplerAllowed: [...samplerAllowed] });
     return true;
   }
 
@@ -628,7 +647,7 @@ function injectBtn() {
 
   setReadyState(btn, label, resumeUrl);
   placeBtnWrapper();
-  console.debug('[UM] CTA injected', { cid, label, resumeUrl });
+  console.debug('[UM] CTA decision', { cid, tier, label, resumeUrl, signals, samplerAllowed: [...samplerAllowed], already });
   return true;
 
 }
@@ -685,16 +704,7 @@ function watchAndInject(){
   function gate(){
     const U = window.__U||{}; const ent = U.entitlements; if (!ent) return;
     const FALLBACK_SAMPLER_ALLOWED = ['C001','C002','C003'];
-    const tier = normalizeTier(
-      ent.plan?.tier ||
-      U.profile?.plan_code ||
-      U.profile?.plan_name ||
-      U.profile?.billing_plan_type ||
-      window.logged_in_user?.plan_code ||
-      window.logged_in_user?.plan_name ||
-      window.logged_in_user?.billing_plan_type ||
-      'sampler'
-    );
+    const { tier, signals } = resolveTierSignals();
     if (tier !== 'sampler') return;
 
     const cid = courseId(); if (!cid) return;
@@ -707,11 +717,18 @@ function watchAndInject(){
         .map(up)
         .filter((id)=>FALLBACK_SAMPLER_ALLOWED.includes(id))
     );
-    if (!allowed.has(cid)) { lock(`Sampler includes C001–C003 only. <code>${cid}</code> is a full course.`); return; }
+    if (!allowed.has(cid)) {
+      console.debug('[UM] Module gate decision', { cid, tier, reason: 'sampler-blocked', signals, allowed: [...allowed] });
+      lock(`Sampler includes C001–C003 only. <code>${cid}</code> is a full course.`); return; }
 
     const limit = +ent.courses?.sampler_module_limit || 3;
     const idx = nodeIndex(); if (idx == null) return;
-    if (idx > limit) lock(`Your plan allows the first ${limit} modules. You’re on module ${idx}.`);
+    if (idx > limit) {
+      console.debug('[UM] Module gate decision', { cid, tier, reason: 'module-limit', limit, idx, signals });
+      lock(`Your plan allows the first ${limit} modules. You’re on module ${idx}.`);
+    } else {
+      console.debug('[UM] Module gate decision', { cid, tier, reason: 'allowed', limit, idx, signals, allowed: [...allowed] });
+    }
   }
 
   if (window.__U?.entitlements) gate(); else window.addEventListener('universio:bootstrapped', gate, { once:true });
