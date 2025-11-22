@@ -728,6 +728,7 @@ let CTACompletionFired = false;
 let LAST_START_LOG = '';
 let LAST_DECISION_LOG = '';
 let LAST_AWAIT_LOG = -1;
+let CTA_BOOTSTRAP_PROMISE = null;
 
 function logDecision(payload) {
   if (!window.__UM_DEBUG_CTA) return;
@@ -824,6 +825,29 @@ function bindPlacementListeners() {
 }
 
 function findCourseContainer() {
+  const cid = getCourseId();
+
+  // Prefer Softr's own CTA placeholder so we stay anchored where the
+  // platform would normally render the button (typically near the bottom
+  // of the course card/section).
+  const ctaLinks = Array.from(
+    document.querySelectorAll('a[href*="/classroom?graph="]')
+  ).filter((a) => a instanceof HTMLElement);
+
+  let placeholder = null;
+  if (ctaLinks.length) {
+    // Pick the last matching link for the current course id if present;
+    // otherwise fall back to the last CTA link on the page.
+    const courseMatches = cid
+      ? ctaLinks.filter((a) =>
+          normalizeCourseId((a.getAttribute('href') || '').split('graph=')[1]) === cid
+        )
+      : [];
+    placeholder = (courseMatches[courseMatches.length - 1] || ctaLinks[ctaLinks.length - 1]) || null;
+  }
+
+  if (placeholder) return { el: placeholder, mode: 'after-link' };
+
   const host = document.getElementById('um-course-cta-host');
   if (host) return { el: host, mode: 'host' };
 
@@ -877,6 +901,14 @@ function placeBtnWrapper() {
 
   const parent = target.parentNode;
   if (wrapper.previousElementSibling === target && wrapper.parentNode === parent) {
+    return;
+  }
+
+  const mode = targetInfo?.mode || 'after';
+  if (mode === 'after-link') {
+    // Keep the existing container contents intact and simply inject after the
+    // hidden Softr CTA anchor so layout stays where the platform placed it.
+    target.insertAdjacentElement('afterend', wrapper);
     return;
   }
 
@@ -1034,7 +1066,7 @@ function injectBtn(attempt = 0, maxAttempts = 1) {
 
   setReadyState(btn, label, startHint.resumeUrl);
   placeBtnWrapper();
-    logDecision({ cid, tier, label, resumeUrl: startHint.resumeUrl, signals, samplerAllowed: [...samplerAllowed], already });
+  logDecision({ cid, tier, label, resumeUrl: startHint.resumeUrl, signals, samplerAllowed: [...samplerAllowed], already });
 
   const settled =
     completionDetected ||
@@ -1043,13 +1075,49 @@ function injectBtn(attempt = 0, maxAttempts = 1) {
     tier === 'sampler' ||
     attempt >= maxAttempts;
 
-  if (!settled && window.__UM_DEBUG_CTA && attempt !== LAST_AWAIT_LOG) {
+  if (!settled && window.__UM_DEBUG_CTA && LAST_AWAIT_LOG < 0) {
     LAST_AWAIT_LOG = attempt;
     console.debug('[UM] CTA awaiting signals', { cid, attempt, maxAttempts });
   }
 
   return settled;
 
+}
+function ensureFreshBootstrap() {
+  if (CTA_BOOTSTRAP_PROMISE) return CTA_BOOTSTRAP_PROMISE;
+
+  const email = (window.logged_in_user?.softr_user_email || '').toLowerCase();
+  if (!email) return null;
+
+  CTA_BOOTSTRAP_PROMISE = fetch(BOOTSTRAP_URL, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      email,
+      include_progress: true,
+      include_last_activity: true,
+      probe_plan: false,
+    }),
+  })
+    .then((r) => r.json())
+    .then((out) => {
+      if (!out?.ok) return null;
+      const data = out.data || {};
+      window.__U = window.__U || {};
+      window.__U.flags = data.flags || window.__U.flags || {};
+      window.__U.profile = data.profile || window.__U.profile || null;
+      window.__U.progress = data.dashboardProgress || window.__U.progress || [];
+      window.__U.last = data.lastContext || window.__U.last || null;
+      window.__U.courseHints = data.courseHints || window.__U.courseHints || {};
+      window.__U.entitlements = data.entitlements || out.entitlements || window.__U.entitlements || null;
+      sessionStorage.setItem('universio:progress', JSON.stringify(window.__U.progress || []));
+      sessionStorage.setItem('universio:entitlements', JSON.stringify(window.__U.entitlements || {}));
+      if (window.__UM_DEBUG_CTA) console.debug('[UM] CTA bootstrap refresh', { email });
+      return window.__U;
+    })
+    .catch(() => null);
+
+  return CTA_BOOTSTRAP_PROMISE;
 }
 function watchAndInject(){
   let attempts = 0;
@@ -1067,7 +1135,15 @@ function watchAndInject(){
     }
   }, 600);
 
-  injectBtn(attempts, MAX_ATTEMPTS) && observer.disconnect();
+  const settled = injectBtn(attempts, MAX_ATTEMPTS);
+  if (!settled) {
+    const needsBootstrap = !window.__U?.entitlements;
+    const needsEvidence = !needsBootstrap && !isCourseCompleted(getCourseId()) && !getCourseStartHint(getCourseId()).alreadyStarted;
+    if (needsBootstrap || needsEvidence) {
+      ensureFreshBootstrap()?.then(() => injectBtn(++attempts, MAX_ATTEMPTS));
+    }
+  }
+  settled && observer.disconnect();
 }
 
   if(window.__U?.entitlements) watchAndInject();
