@@ -109,6 +109,24 @@ window.__U.cwt_expires_at = __toEpochSeconds(out.data?.cwt_expires_at || out.cwt
     window.__U.courseHints = data.courseHints || {};
     window.__U.entitlements = data.entitlements || out.entitlements || null;
 
+    // Keep Softr's user object in sync with the authoritative profile
+    // so inline checks like `logged_in_user.billing_plan_type` reflect
+    // the latest plan values coming from Supabase/Profiles.
+    try {
+      const profile = data.profile || {};
+      const u = window.logged_in_user || {};
+      const planCode = profile.plan_code || u.plan_code || null;
+      const planName = profile.plan_name || u.plan_name || null;
+      if (planCode && !u.plan_code) u.plan_code = planCode;
+      if (planName && !u.plan_name) u.plan_name = planName;
+      if (!u.billing_plan_type) {
+        u.billing_plan_type = profile.billing_plan_type || planCode || planName || null;
+      }
+      window.logged_in_user = u;
+    } catch (e) {
+      console.warn("[bootstrap] unable to sync Softr user plan fields", e);
+    }
+
 
     sessionStorage.setItem("universio:flags", JSON.stringify(window.__U.flags || {}));
     sessionStorage.setItem("universio:profile", JSON.stringify(window.__U.profile || {}));
@@ -319,6 +337,15 @@ function getCourseId(){
   // Prefer URL; if marker disagrees, fix it.
   if (m && pathCID && markerCID !== pathCID) m.setAttribute('data-course', pathCID);
   return pathCID || markerCID || null;
+}
+
+function normalizeTier(value){
+  const s = (value || '').toString().trim().toLowerCase();
+  if (s.includes('pro')) return 'pro';
+  if (s.includes('plus')) return 'plus';
+  if (s.includes('basic')) return 'basic';
+  if (['basic','plus','pro','sampler'].includes(s)) return s;
+  return 'sampler';
 }
 
 const START_NODE = {
@@ -534,13 +561,16 @@ function injectBtn() {
   const hint = hints[cid];
 
   const BASE_SAMPLER_ALLOWED = ['C001','C002','C003'];
-  const rawTier = String(
-    // Rely solely on entitlements for gating to avoid stale Softr billing data
-    // accidentally upgrading/downgrading eligibility.
+  const tier = normalizeTier(
     ent.plan?.tier ||
+    U.profile?.plan_code ||
+    U.profile?.plan_name ||
+    U.profile?.billing_plan_type ||
+    window.logged_in_user?.plan_code ||
+    window.logged_in_user?.plan_name ||
+    window.logged_in_user?.billing_plan_type ||
     'sampler'
-  ).trim().toLowerCase();
-  const tier = ['basic','plus','pro'].includes(rawTier) ? rawTier : 'sampler';
+  );
   const samplerAllowedRaw = Array.isArray(ent.courses?.sampler_allowed)
     ? ent.courses.sampler_allowed
     : BASE_SAMPLER_ALLOWED;
@@ -645,12 +675,16 @@ function watchAndInject(){
   function gate(){
     const U = window.__U||{}; const ent = U.entitlements; if (!ent) return;
     const FALLBACK_SAMPLER_ALLOWED = ['C001','C002','C003'];
-    const rawTier = String(
-      // Only trust entitlements; ignore Softr billing fields that may be stale.
+    const tier = normalizeTier(
       ent.plan?.tier ||
+      U.profile?.plan_code ||
+      U.profile?.plan_name ||
+      U.profile?.billing_plan_type ||
+      window.logged_in_user?.plan_code ||
+      window.logged_in_user?.plan_name ||
+      window.logged_in_user?.billing_plan_type ||
       'sampler'
-    ).trim().toLowerCase();
-    const tier = ['basic','plus','pro'].includes(rawTier) ? rawTier : 'sampler';
+    );
     if (tier !== 'sampler') return;
 
     const cid = courseId(); if (!cid) return;
