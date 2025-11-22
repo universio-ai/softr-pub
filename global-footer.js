@@ -534,9 +534,19 @@ function injectBtn() {
   const hint = hints[cid];
 
   const FALLBACK_SAMPLER_ALLOWED = ['C001','C002','C003'];
-  const tier = String(ent.plan?.tier || 'sampler').trim().toLowerCase();
+  const rawTier = String(
+    ent.plan?.tier ||
+    window.logged_in_user?.billing_plan_type ||
+    window.logged_in_user?.billing_plan ||
+    'sampler'
+  ).trim().toLowerCase();
+  const tier = ['basic','plus','pro'].includes(rawTier) ? rawTier : 'sampler';
+  const samplerAllowedRaw = Array.isArray(ent.courses?.sampler_allowed)
+    ? ent.courses.sampler_allowed
+    : FALLBACK_SAMPLER_ALLOWED;
+  const samplerAllowedList = samplerAllowedRaw.length ? samplerAllowedRaw : FALLBACK_SAMPLER_ALLOWED;
   const samplerAllowed = new Set(
-    (ent.courses?.sampler_allowed || FALLBACK_SAMPLER_ALLOWED).map(up)
+    samplerAllowedList.map(up)
   );
   const activeCourses = new Set(ent.courses?.active_courses || []);
   const isActive = activeCourses.has(cid);
@@ -633,11 +643,22 @@ function watchAndInject(){
   function gate(){
     const U = window.__U||{}; const ent = U.entitlements; if (!ent) return;
     const FALLBACK_SAMPLER_ALLOWED = ['C001','C002','C003'];
-    const tier = String(ent.plan?.tier || 'sampler').trim().toLowerCase(); if (tier !== 'sampler') return;
+    const rawTier = String(
+      ent.plan?.tier ||
+      window.logged_in_user?.billing_plan_type ||
+      window.logged_in_user?.billing_plan ||
+      'sampler'
+    ).trim().toLowerCase();
+    const tier = ['basic','plus','pro'].includes(rawTier) ? rawTier : 'sampler';
+    if (tier !== 'sampler') return;
 
     const cid = courseId(); if (!cid) return;
+    const samplerAllowedRaw = Array.isArray(ent.courses?.sampler_allowed)
+      ? ent.courses.sampler_allowed
+      : FALLBACK_SAMPLER_ALLOWED;
+    const samplerAllowedList = samplerAllowedRaw.length ? samplerAllowedRaw : FALLBACK_SAMPLER_ALLOWED;
     const allowed = new Set(
-      (ent.courses?.sampler_allowed || FALLBACK_SAMPLER_ALLOWED).map(up)
+      samplerAllowedList.map(up)
     );
     if (!allowed.has(cid)) { lock(`Sampler includes C001–C003 only. <code>${cid}</code> is a full course.`); return; }
 
