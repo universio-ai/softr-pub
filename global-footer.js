@@ -317,6 +317,7 @@ let CTA_BTN = null;
 let CTA_WRAPPER = null;
 let CTAPlacementBound = false;
 let CTADomObserver = null;
+let CTA_MSG = null;
 
 function ensureBtn() {
   if (CTA_BTN) return CTA_BTN;
@@ -367,9 +368,24 @@ function ensureBtn() {
     btn.style.boxShadow = '0 3px 8px rgba(0,0,0,0.15)';
   };
 
+  const msg = document.createElement('div');
+  msg.id = 'um-start-msg';
+  Object.assign(msg.style, {
+    fontFamily: 'system-ui, Inter, sans-serif',
+    fontSize: '13px',
+    color: '#333',
+    textAlign: 'center',
+    marginTop: '10px',
+    maxWidth: '520px',
+    lineHeight: '1.5',
+    display: 'none',
+  });
+
   wrapper.appendChild(btn);
+  wrapper.appendChild(msg);
   CTA_WRAPPER = wrapper;
   CTA_BTN = btn;
+  CTA_MSG = msg;
 
   const main = document.querySelector('main');
   (main || document.body).appendChild(wrapper);
@@ -445,6 +461,7 @@ function setLoadingState(btn, label = 'Loading…') {
   btn.style.cursor = 'default';
   btn.style.opacity = '0.7';
   btn.onclick = null;
+  setMessage('');
 }
 
 function setReadyState(btn, label, resumeUrl) {
@@ -455,6 +472,26 @@ function setReadyState(btn, label, resumeUrl) {
   btn.style.cursor = 'pointer';
   btn.style.opacity = '1';
   btn.onclick = () => (location.href = resumeUrl);
+  setMessage('');
+}
+
+function setBlockedState(btn, label, onClick, message = '') {
+  btn.dataset.state = 'blocked';
+  btn.textContent = label;
+  btn.setAttribute('aria-busy', 'false');
+  btn.disabled = !onClick;
+  btn.style.cursor = onClick ? 'pointer' : 'not-allowed';
+  btn.style.opacity = '1';
+  btn.onclick = onClick || null;
+  setMessage(message);
+}
+
+function setMessage(text = '') {
+  const msg = CTA_MSG || CTA_WRAPPER?.querySelector?.('#um-start-msg');
+  if (!msg) return;
+  const clean = (text || '').trim();
+  msg.textContent = clean;
+  msg.style.display = clean ? 'block' : 'none';
 }
 
 setLoadingState(ensureBtn());
@@ -476,6 +513,34 @@ function injectBtn() {
 
   const hints = U.courseHints || {};
   const hint = hints[cid];
+
+  const tier = String(ent.plan?.tier || 'sampler').toLowerCase();
+  const samplerAllowed = new Set(ent.courses?.sampler_allowed || []);
+  const activeCourses = new Set(ent.courses?.active_courses || []);
+  const isActive = activeCourses.has(cid);
+  const activeSlots = Number(ent.courses?.active_slots || 0);
+  const activeRemaining = Number(ent.courses?.active_slots_remaining ?? 0);
+  const swapTarget = ent.courses?.will_swap_out || null;
+
+  if (tier === 'sampler' && !samplerAllowed.has(cid)) {
+    setBlockedState(
+      btn,
+      'Upgrade to start',
+      () => (location.href = '/pricing'),
+      'Sampler includes C001–C003 only. Upgrade to access full courses.'
+    );
+    placeBtnWrapper();
+    return true;
+  }
+
+  if (tier !== 'sampler' && activeSlots > 0 && !isActive && activeRemaining <= 0) {
+    const message = swapTarget
+      ? `You’re at your course limit. Finish or swap out ${swapTarget} to start this course.`
+      : 'You’re at your course limit. Finish one course to start another.';
+    setBlockedState(btn, 'Course limit reached', () => (location.href = '/dashboard'), message);
+    placeBtnWrapper();
+    return true;
+  }
 
   let resumeUrl;
   if (hint?.alreadyStarted) {
