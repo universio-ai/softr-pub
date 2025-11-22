@@ -315,6 +315,15 @@ window.addEventListener("@softr/page-content-loaded", () => {
 </script>
 <!-- Universio Global Start/Resume Button Injection -->
 <script>
+function normalizeTier(value){
+  const s = (value || '').toString().trim().toLowerCase();
+  if (s.includes('pro')) return 'pro';
+  if (s.includes('plus')) return 'plus';
+  if (s.includes('basic')) return 'basic';
+  if (['basic','plus','pro','sampler'].includes(s)) return s;
+  return 'sampler';
+}
+
 (function () {
 if (window.__umCtaScriptOnce) { return; }
 window.__umCtaScriptOnce = true;
