@@ -330,8 +330,11 @@ function toggleGridsUnified(){
   border-radius: 999px;
   animation: umGridDot 1s ease-in-out infinite;
 background: linear-gradient(90deg, #5A8CFF, #B874FF, #D09BFF) !important;
-background-size: 300% 100% !important;
-background-position: calc(var(--i,0) * 100%) 0 !important;
+background-size: 800% 800% !important;
+background-position: calc(var(--i,0) * 200%) 0 !important;
+-webkit-background-clip: padding-box !important;
+background-clip: padding-box !important;
+
 
   opacity: .28;
   box-shadow: 0 2px 6px rgba(123,97,255,.3);
