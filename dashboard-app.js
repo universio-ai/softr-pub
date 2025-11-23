@@ -322,7 +322,16 @@ function toggleGridsUnified(){
   #${LOADER_ID}{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:9999;background:rgba(255,255,255,.92);backdrop-filter:blur(3px);transition:opacity .14s ease;}
 #${LOADER_ID}[data-hidden="1"]{opacity:0;pointer-events:none;}
 #${LOADER_ID} .um-grid-loader{display:inline-flex;gap:8px;align-items:center;justify-content:center;}
-#${LOADER_ID} .um-grid-loader span{width:12px;height:12px;border-radius:999px;background:#7B61FF!important;opacity:.28;animation:umGridDot 1s ease-in-out infinite;box-shadow:0 2px 6px rgba(123,97,255,.3);}
+#${LOADER_ID} .um-grid-loader span {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  opacity: .28;
+  background: linear-gradient(to right, #5A8CFF 10%, #B874FF 60%, #D09BFF 100%) !important;
+  animation: umGridDot 1s ease-in-out infinite;
+  box-shadow: 0 2px 6px rgba(123,97,255,.3);
+}
+
 #${LOADER_ID} .um-grid-loader span:nth-child(1){animation-delay:-.2s;}
 #${LOADER_ID} .um-grid-loader span:nth-child(2){animation-delay:-.1s;}
 #${LOADER_ID} .um-grid-loader span:nth-child(3){animation-delay:0s;}
