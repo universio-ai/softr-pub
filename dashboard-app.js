@@ -326,10 +326,17 @@ function toggleGridsUnified(){
   width: 12px;
   height: 12px;
   border-radius: 999px;
-  opacity: .28;
-  background: linear-gradient(to right, #5A8CFF 10%, #B874FF 60%, #D09BFF 100%) !important;
+  opacity: .35;
+  background: #5A8CFF !important; /* Inactive = blue */
   animation: umGridDot 1s ease-in-out infinite;
-  box-shadow: 0 2px 6px rgba(123,97,255,.3);
+  box-shadow: 0 2px 6px rgba(90,140,255,.35);
+}
+
+/* The active dot (using nth-child timing) */
+#${LOADER_ID} .um-grid-loader span.active {
+  background: #B874FF !important; /* Active = purple */
+  box-shadow: 0 2px 6px rgba(184,116,255,.4);
+  opacity: 1;
 }
 
 #${LOADER_ID} .um-grid-loader span:nth-child(1){animation-delay:-.2s;}
