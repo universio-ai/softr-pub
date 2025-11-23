@@ -1095,7 +1095,11 @@ window.addEventListener("universio:bootstrapped", () => {
 
         // Track how many ms we've already billed for this node to avoid re-sending after reloads
         const BILLED_KEY = `uni:billed:${graphId}:${nodeId}:ms`;
-        const PROG_KEY = `uni:progress:${graphId}:${nodeId}`;
+        const LEGACY_PROG_KEY = `uni:progress:${graphId}:${nodeId}`;
+        function PROG_KEY() {
+            const uid = String(window.__uniUserId || getUserId() || "anon");
+            return `uni:progress:${uid}:${graphId}:${nodeId}`;
+        }
 
         function coerceProgressFraction(value) {
             if (value == null) return 0;
@@ -1113,7 +1117,10 @@ window.addEventListener("universio:bootstrapped", () => {
 
         function readStoredProgressFraction() {
             try {
-                const raw = localStorage.getItem(PROG_KEY);
+                if (LEGACY_PROG_KEY !== PROG_KEY()) {
+                    localStorage.removeItem(LEGACY_PROG_KEY);
+                }
+                const raw = localStorage.getItem(PROG_KEY());
                 if (raw == null) return 0;
                 return coerceProgressFraction(raw);
             } catch {
@@ -1124,7 +1131,7 @@ window.addEventListener("universio:bootstrapped", () => {
         function writeStoredProgressFraction(fraction) {
             const clean = Math.max(0, Math.min(1, Number(fraction) || 0));
             try {
-                localStorage.setItem(PROG_KEY, String(clean));
+                localStorage.setItem(PROG_KEY(), String(clean));
             } catch {}
         }
 
@@ -1768,7 +1775,7 @@ window.addEventListener("universio:bootstrapped", () => {
                         setTimeout(() => banner.remove(), 300);
                     }
                     // Reset pill to prepare for new node
-                    localStorage.removeItem(PROG_KEY);
+                    localStorage.removeItem(PROG_KEY());
                     updateProgressUI(0);
                 } catch (e) {
                     console.warn("[UNI][Continue] cleanup failed", e);
@@ -1904,7 +1911,7 @@ window.addEventListener("universio:bootstrapped", () => {
                 oldBanner.remove();
             }
             // Reset pill text back to 0% and clear stored progress
-            localStorage.removeItem(PROG_KEY);
+            localStorage.removeItem(PROG_KEY());
             updateProgressUI(0);
         } catch (e) {
             console.warn("[UNI] Cleanup failed", e);
@@ -2512,7 +2519,7 @@ injectStyles(`
         }
 
         try {
-            const cachedRaw = localStorage.getItem(PROG_KEY);
+            const cachedRaw = localStorage.getItem(PROG_KEY());
             if (cachedRaw != null) {
                 updateProgressUI(coerceProgressPercent(cachedRaw));
             }
