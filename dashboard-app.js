@@ -356,6 +356,8 @@ function toggleGridsUnified(){
   }
 }
 `;
+  document.head.appendChild(style);
+};
   const showLoader=()=>{
     ensureLoaderStyle();
     let scrim=document.getElementById(LOADER_ID);
