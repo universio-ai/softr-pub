@@ -447,9 +447,12 @@ function toggleGridsUnified(){
     applyFinal(showFreshUser(),"Final grid state (timeout; not cached)",false);
   },12000);
 
-  // Default to the fresh-user experience until we know which user is logged in.
-  // This avoids showing another user's cached grids when accounts switch.
-  applyTemp(showFreshUser(), "Applying fresh-user defaults while resolving user");
+// Keep all grids hidden until we have a final decision.
+// This avoids the grid1 flash for returning users.
+applyTemp(
+  { grid1:false, grid2:false, grid3:false, grid4:false, grid5:false },
+  "Keeping grids hidden while resolving user"
+);
 
   // Cache is validated against the resolved user; we null it out immediately if
   // it does not belong to the current session to avoid leaking old states into
