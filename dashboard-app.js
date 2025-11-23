@@ -319,33 +319,43 @@ function toggleGridsUnified(){
     const style=document.createElement('style');
     style.id=LOADER_STYLE_ID;
     style.textContent=`
-  #${LOADER_ID}{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:9999;background:rgba(255,255,255,.92);backdrop-filter:blur(3px);transition:opacity .14s ease;}
+#${LOADER_ID}{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:9999;background:rgba(255,255,255,.92);backdrop-filter:blur(3px);transition:opacity .14s ease;}
 #${LOADER_ID}[data-hidden="1"]{opacity:0;pointer-events:none;}
+
 #${LOADER_ID} .um-grid-loader{display:inline-flex;gap:8px;align-items:center;justify-content:center;}
+
 #${LOADER_ID} .um-grid-loader span {
   width: 12px;
   height: 12px;
   border-radius: 999px;
-  opacity: .35;
-  background: #5A8CFF !important; /* Inactive = blue */
   animation: umGridDot 1s ease-in-out infinite;
-  box-shadow: 0 2px 6px rgba(90,140,255,.35);
+  background: linear-gradient(
+    to right,
+    #5A8CFF 10%,
+    #B874FF 60%,
+    #D09BFF 100%
+  ) !important;
+  opacity: .28;
+  box-shadow: 0 2px 6px rgba(123,97,255,.3);
 }
 
-/* The active dot (using nth-child timing) */
-#${LOADER_ID} .um-grid-loader span.active {
-  background: #B874FF !important; /* Active = purple */
-  box-shadow: 0 2px 6px rgba(184,116,255,.4);
-  opacity: 1;
-}
-
-#${LOADER_ID} .um-grid-loader span:nth-child(1){animation-delay:-.2s;}
-#${LOADER_ID} .um-grid-loader span:nth-child(2){animation-delay:-.1s;}
+#${LOADER_ID} .um-grid-loader span:nth-child(1){animation-delay:-.20s;}
+#${LOADER_ID} .um-grid-loader span:nth-child(2){animation-delay:-.10s;}
 #${LOADER_ID} .um-grid-loader span:nth-child(3){animation-delay:0s;}
-@keyframes umGridDot{0%,80%,100%{transform:scale(.6);opacity:.25;}40%{transform:scale(1);opacity:1;}}
-    `;
-    document.head.appendChild(style);
-  };
+
+@keyframes umGridDot {
+  0%, 80%, 100% {
+    transform: scale(.6);
+    opacity: .25;
+    filter: brightness(0.85);
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+    filter: brightness(1.18) saturate(1.25);
+  }
+}
+`;
   const showLoader=()=>{
     ensureLoaderStyle();
     let scrim=document.getElementById(LOADER_ID);
