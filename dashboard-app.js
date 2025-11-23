@@ -329,19 +329,27 @@ function toggleGridsUnified(){
   height: 12px;
   border-radius: 999px;
   animation: umGridDot 1s ease-in-out infinite;
-  background: linear-gradient(
-    to right,
-    #5A8CFF 10%,
-    #B874FF 60%,
-    #D09BFF 100%
-  ) !important;
+background: linear-gradient(90deg, #5A8CFF, #B874FF, #D09BFF) !important;
+background-size: 300% 100% !important;
+background-position: calc(var(--i,0) * 100%) 0 !important;
+
   opacity: .28;
   box-shadow: 0 2px 6px rgba(123,97,255,.3);
 }
 
-#${LOADER_ID} .um-grid-loader span:nth-child(1){animation-delay:-.20s;}
-#${LOADER_ID} .um-grid-loader span:nth-child(2){animation-delay:-.10s;}
-#${LOADER_ID} .um-grid-loader span:nth-child(3){animation-delay:0s;}
+#${LOADER_ID} .um-grid-loader span:nth-child(1){
+  animation-delay:-.20s;
+  --i: 0;
+}
+#${LOADER_ID} .um-grid-loader span:nth-child(2){
+  animation-delay:-.10s;
+  --i: 1;
+}
+#${LOADER_ID} .um-grid-loader span:nth-child(3){
+  animation-delay:0s;
+  --i: 2;
+}
+
 
 @keyframes umGridDot {
   0%, 80%, 100% {
