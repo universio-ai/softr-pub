@@ -2372,7 +2372,7 @@ injectStyles(`
   right: 0 !important;
   transform: none !important;
   width: 100vw !important;
-  max-width: 650px !important;
+  max-width: 700px !important;
   margin: auto !important;
   z-index: 9999;
   padding: 12px calc(14px + env(safe-area-inset-right)) 12px calc(14px + env(safe-area-inset-left)) !important;
