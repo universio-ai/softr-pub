@@ -2414,10 +2414,74 @@ injectStyles(`
     background: rgba(255,255,255,0.65) !important;
   }
 
-  #${ROOT_ID}:not([data-ready="1"]) .uni-input-row { 
-    visibility: hidden !important; 
+  #${ROOT_ID}:not([data-ready="1"]) .uni-input-row {
+    visibility: hidden !important;
   }
 }
+`);
+
+        injectStyles(`
+  @media (min-width: 769px) {
+    #${ROOT_ID} .uni-messages {
+      padding-bottom: calc(var(--bar-h, 96px) + 16px) !important;
+      scroll-padding-bottom: calc(var(--bar-h, 96px) + 16px) !important;
+    }
+
+    #${ROOT_ID} .uni-messages::after {
+      content: "";
+      display: block;
+      height: calc(var(--bar-h, 96px) + env(safe-area-inset-bottom));
+      margin-top: 8px;
+      pointer-events: none;
+    }
+
+    #${ROOT_ID} .uni-input-row {
+      position: fixed !important;
+      bottom: calc(env(safe-area-inset-bottom)) !important;
+      left: 0 !important;
+      right: 0 !important;
+      transform: none !important;
+      width: 100vw !important;
+      max-width: none !important;
+      margin: 0 !important;
+      z-index: 9999;
+      padding: 12px calc(14px + env(safe-area-inset-right)) 12px calc(14px + env(safe-area-inset-left)) !important;
+      box-sizing: border-box;
+
+      background: rgba(255,255,255,0.1) !important;
+      border: 0.7px solid #000000 !important;
+      box-shadow: 0 12px 32px rgba(15, 18, 34, 0.12);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border-radius: 10px !important;
+      overflow: hidden;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    #${ROOT_ID} .uni-input-row .uni-input {
+      flex: 1 1 auto;
+      min-width: 0;
+      border-radius: 18px !important;
+      border: 0.7px solid #000000 !important;
+      background: rgba(255,255,255,0.65) !important;
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+      box-shadow: none !important;
+      color: #0F1222 !important;
+      padding: 12px 16px !important;
+      transition: border-color 0.2s ease, background 0.2s ease;
+    }
+
+    #${ROOT_ID} .uni-input-row .mic-btn {
+      border: 0.7px solid #000000 !important;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.65) !important;
+    }
+
+    #${ROOT_ID}:not([data-ready="1"]) .uni-input-row {
+      visibility: hidden !important;
+    }
+  }
 `);
 
 
@@ -3355,7 +3419,7 @@ injectStyles(`
         });
 
         const inputRow = el("div", { class: "uni-input-row" }, [micBtn, inputEl, sendBtn]);
-        chatBody.append(messagesEl, inputRow);
+        chatBody.append(messagesEl);
         chatCard.append(shellLoader, chatHeader, chatBody);
 
         // Plan card
@@ -3369,64 +3433,39 @@ injectStyles(`
         // ✅ only append chatCard and planCard (remove toolbar entirely)
         rootEl.append(chatCard, planCard);
 
-        const mobileComposerQuery =
-            typeof window.matchMedia === "function" ? window.matchMedia("(max-width: 768px)") : null;
-        const placeComposer = () => {
-            if (!mobileComposerQuery) return;
-            if (mobileComposerQuery.matches) {
-                if (inputRow.parentElement !== rootEl) {
-                    rootEl.appendChild(inputRow);
-                }
-            } else if (inputRow.parentElement !== chatBody) {
-                chatBody.appendChild(inputRow);
-            }
-        };
-        if (mobileComposerQuery) {
-            placeComposer();
-            if (typeof mobileComposerQuery.addEventListener === "function") {
-                mobileComposerQuery.addEventListener("change", placeComposer);
-            } else if (typeof mobileComposerQuery.addListener === "function") {
-                mobileComposerQuery.addListener(placeComposer);
-            }
+        if (inputRow.parentElement !== rootEl) {
+            rootEl.appendChild(inputRow);
         }
 
         // hook up reset button now that it exists
         resetBtn.addEventListener("click", resetSession);
 
-        /* === A: Desktop chat layout + auto-scroll (drop-in) === */
-        injectStyles(`
-  /* Desktop layout: messages fill, input stays in flow (no fixed/sticky) */
-  @media (min-width: 769px){
-    #${ROOT_ID} .uni-card {
-      display: flex;
-      flex-direction: column;
+          /* === A: Desktop chat layout + auto-scroll (drop-in) === */
+          injectStyles(`
+    /* Desktop layout: messages fill entire column; composer is fixed via shared styles */
+    @media (min-width: 769px){
+      #${ROOT_ID} .uni-card {
+        display: flex;
+        flex-direction: column;
+      }
+      #${ROOT_ID} .uni-section {
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 auto;
+        min-height: 0;               /* critical for flex scrolling */
+      }
+      #${ROOT_ID} .uni-messages {
+        flex: 1 1 auto;
+        min-height: 0;               /* allow child to shrink for overflow */
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding: 16px;
+        scroll-behavior: smooth;
+      }
     }
-    #${ROOT_ID} .uni-section {
-      display: flex;
-      flex-direction: column;
-      flex: 1 1 auto;
-      min-height: 0;               /* critical for flex scrolling */
-    }
-    #${ROOT_ID} .uni-messages {
-      flex: 1 1 auto;
-      min-height: 0;               /* allow child to shrink for overflow */
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      padding: 16px;
-      scroll-behavior: smooth;
-
-      /* cushion so last bubble never hides behind composer */
-      padding-bottom: 80px;
-      scroll-padding-bottom: 80px;
-    }
-    #${ROOT_ID} .uni-input-row {
-      position: static !important; /* ensure no fixed/sticky sneaks back */
-      margin-top: 12px;
-    }
-  }
-`);
+  `);
 
         injectStyles(`
   #${ROOT_ID} .uni-section { overflow: hidden !important; }
