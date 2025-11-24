@@ -3372,17 +3372,12 @@ injectStyles(`
         const mobileComposerQuery =
             typeof window.matchMedia === "function" ? window.matchMedia("(max-width: 768px)") : null;
         const placeComposer = () => {
-            if (!mobileComposerQuery) return;
-            if (mobileComposerQuery.matches) {
-                if (inputRow.parentElement !== rootEl) {
-                    rootEl.appendChild(inputRow);
-                }
-            } else if (inputRow.parentElement !== chatBody) {
-                chatBody.appendChild(inputRow);
+            if (inputRow.parentElement !== rootEl) {
+                rootEl.appendChild(inputRow);
             }
         };
+        placeComposer();
         if (mobileComposerQuery) {
-            placeComposer();
             if (typeof mobileComposerQuery.addEventListener === "function") {
                 mobileComposerQuery.addEventListener("change", placeComposer);
             } else if (typeof mobileComposerQuery.addListener === "function") {
@@ -3395,11 +3390,17 @@ injectStyles(`
 
         /* === A: Desktop chat layout + auto-scroll (drop-in) === */
         injectStyles(`
-  /* Desktop layout: messages fill, input stays in flow (no fixed/sticky) */
+  /* Desktop layout: messages fill, input composer fixed like mobile */
   @media (min-width: 769px){
+    #${ROOT_ID} {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
     #${ROOT_ID} .uni-card {
       display: flex;
       flex-direction: column;
+      width: 100%;
     }
     #${ROOT_ID} .uni-section {
       display: flex;
@@ -3418,12 +3419,60 @@ injectStyles(`
       scroll-behavior: smooth;
 
       /* cushion so last bubble never hides behind composer */
-      padding-bottom: 80px;
-      scroll-padding-bottom: 80px;
+      padding-bottom: 140px;
+      scroll-padding-bottom: 140px;
+    }
+    #${ROOT_ID} .uni-messages::after {
+      content: "";
+      display: block;
+      height: 120px;
+      pointer-events: none;
     }
     #${ROOT_ID} .uni-input-row {
-      position: static !important; /* ensure no fixed/sticky sneaks back */
-      margin-top: 12px;
+      position: fixed !important;
+      bottom: calc(var(--kb, 0px) + env(safe-area-inset-bottom)) !important;
+      left: 50% !important;
+      transform: translateX(-50%) !important;
+      width: 100% !important;
+      max-width: 650px !important;
+      margin: 0 !important;
+      z-index: 9999;
+      padding: 12px 14px !important;
+      box-sizing: border-box;
+
+      /* Outer edge stays solid white */
+      background: rgba(255,255,255,0.1) !important;
+      border: 0.7px solid #000000 !important; /* Mobile Composer Borders */
+      box-shadow: 0 12px 32px rgba(15, 18, 34, 0.12);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border-radius: 10px !important;
+      overflow: hidden;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    #${ROOT_ID} .uni-input-row .uni-input {
+      flex: 1 1 auto;
+      min-width: 0;
+      border-radius: 18px !important;
+      border: 0.7px solid #000000 !important; /* exact same border look */
+
+      /* Fully transparent input area */
+      background: rgba(255,255,255,0.65) !important;
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+
+      box-shadow: none !important;
+      color: #0F1222 !important;
+      padding: 12px 16px !important;
+      transition: border-color 0.2s ease, background 0.2s ease;
+    }
+    #${ROOT_ID} .uni-input-row .mic-btn {
+      border: 0.7px solid #000000 !important; /* Mobile Composer Borders */
+      border-radius: 50%;
+      background: rgba(255,255,255,0.65) !important;
+    }
+    #${ROOT_ID}:not([data-ready="1"]) .uni-input-row {
+      visibility: hidden !important;
     }
   }
 `);
