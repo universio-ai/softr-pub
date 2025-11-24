@@ -249,9 +249,23 @@ async function refreshCWT(emailOverride = "", opts = {}) {
     },
     body: JSON.stringify(body)
   });
-  if (!res.ok) throw new Error("bootstrap refresh failed");
+  if (!res.ok) {
+    clearCachedCWT("bootstrap refresh failed");
+    clearSessionCaches("bootstrap refresh failed");
+    throw new Error("bootstrap refresh failed");
+  }
   const out = await res.json();
+  if (!out?.ok) {
+    clearCachedCWT("bootstrap refresh error");
+    clearSessionCaches("bootstrap refresh error");
+    throw new Error(out?.error || "bootstrap refresh error");
+  }
   const issued = out.data?.cwt;
+  if (!issued) {
+    clearCachedCWT("missing cwt from bootstrap");
+    clearSessionCaches("missing cwt from bootstrap");
+    throw new Error("missing cwt from bootstrap");
+  }
   const payload = __decodeJWTPayload(issued);
   if (payload?.email && payload.email.toLowerCase() !== EMAIL.toLowerCase()) {
     clearCachedCWT("refreshCWT email mismatch");

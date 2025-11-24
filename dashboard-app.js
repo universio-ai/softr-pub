@@ -605,14 +605,18 @@ applyTemp(
           if(typeof clearCachedCWT==="function"){clearCachedCWT(label||"dashboard force refresh");}
           if(typeof clearSessionCaches==="function"){clearSessionCaches(label||"dashboard force refresh");}
 
-          if(typeof refreshCWT==="function"){ 
-            try{await refreshCWT(targetEmail,{retryOnMismatch:true,forceReset:true});}catch(err){console.warn("[dashboard] refreshCWT skipped",err);} 
-          }else if(typeof ensureFreshToken==="function"){ 
-            try{await ensureFreshToken(resolvedEmail);}catch(err){console.warn("[dashboard] ensureFreshToken skipped",err);} 
-          } 
+          if(typeof refreshCWT==="function"){
+            await refreshCWT(targetEmail,{retryOnMismatch:true,forceReset:true});
+          }else if(typeof ensureFreshToken==="function"){
+            await ensureFreshToken(resolvedEmail);
+          }
           if((window.__U?.cwt_email||"").toLowerCase()!==targetEmail){
             clearCachedCWT("dashboard token email mismatch");
             throw new Error("dashboard token email mismatch");
+          }
+          if(!window.__U?.cwt){
+            clearCachedCWT("dashboard missing cwt");
+            throw new Error("dashboard missing cwt");
           }
         };
 
@@ -621,7 +625,8 @@ applyTemp(
           await refreshDashboardToken(attempt===1?"dashboard initial fetch":"dashboard retry fetch");
 
           const headers=new Headers({"Content-Type":"application/json"});
-          if(window.__U?.cwt){headers.set("Authorization",`Bearer ${window.__U.cwt}`);}
+          if(!window.__U?.cwt){throw new Error("dashboard missing Authorization token");}
+          headers.set("Authorization",`Bearer ${window.__U.cwt}`);
           const init={method:"POST",headers,body:JSON.stringify({email}),credentials:"omit",cache:"no-store"};
           headers.set("cache-control","no-store");
           const res=await fetcher("https://oomcxsfikujptkfsqgzi.supabase.co/functions/v1/fetch-profiles",init);
