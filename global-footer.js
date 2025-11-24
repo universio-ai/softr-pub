@@ -63,6 +63,17 @@ function __toEpochSeconds(v) {
     ? Math.floor(Date.parse(v) / 1000)
     : Math.floor(Number(v));
 }
+
+function __decodeJWTPayload(token = "") {
+  try {
+    const [, payload] = String(token).split(".");
+    if (!payload) return null;
+    return JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
+  } catch (e) {
+    console.warn("[auth] failed to decode JWT payload", e);
+    return null;
+  }
+}
 </script>
 
 <script>
@@ -191,6 +202,7 @@ function authHeaders(init = {}) {
 async function refreshCWT(emailOverride = "") {
  const EMAIL = (emailOverride || __currentEmail()).trim();
  if (!EMAIL) throw new Error("no email available for CWT refresh");
+ console.debug("[auth] refreshing CWT for", EMAIL);
  const res = await fetch("https://oomcxsfikujptkfsqgzi.supabase.co/functions/v1/user-bootstrap", {
    method: "POST",
    headers: { "Content-Type": "application/json" },
@@ -198,7 +210,13 @@ async function refreshCWT(emailOverride = "") {
  });
  if (!res.ok) throw new Error("bootstrap refresh failed");
  const out = await res.json();
- window.__U.cwt = out.data?.cwt;
+ const issued = out.data?.cwt;
+ const payload = __decodeJWTPayload(issued);
+ if (payload?.email && payload.email.toLowerCase() !== EMAIL.toLowerCase()) {
+   clearCachedCWT("refreshCWT email mismatch");
+   throw new Error(`CWT email mismatch (wanted ${EMAIL}, got ${payload.email})`);
+ }
+ window.__U.cwt = issued;
   window.__U.cwt_email = EMAIL;
   window.__U.cwt_expires_at = __toEpochSeconds(out.data?.cwt_expires_at);
   scheduleProactiveRefresh();

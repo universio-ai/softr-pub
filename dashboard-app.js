@@ -595,7 +595,7 @@ applyTemp(
           }
         }
 
-        const fetcher=(typeof apiFetch==="function")?apiFetch:fetch;
+        const fetcher=fetch;
         const refreshDashboardToken=async(label)=>{
           const targetEmail=(resolvedEmail||"").toLowerCase();
           if(!targetEmail) return;
@@ -603,10 +603,14 @@ applyTemp(
           // Always reset before minting to avoid ever reusing a prior user's token.
           if(typeof clearCachedCWT==="function"){clearCachedCWT(label||"dashboard force refresh");}
 
-          if(typeof refreshCWT==="function"){
-            try{await refreshCWT(targetEmail);}catch(err){console.warn("[dashboard] refreshCWT skipped",err);}
-          }else if(typeof ensureFreshToken==="function"){
-            try{await ensureFreshToken(resolvedEmail);}catch(err){console.warn("[dashboard] ensureFreshToken skipped",err);}
+          if(typeof refreshCWT==="function"){ 
+            try{await refreshCWT(targetEmail);}catch(err){console.warn("[dashboard] refreshCWT skipped",err);} 
+          }else if(typeof ensureFreshToken==="function"){ 
+            try{await ensureFreshToken(resolvedEmail);}catch(err){console.warn("[dashboard] ensureFreshToken skipped",err);} 
+          }
+          if((window.__U?.cwt_email||"").toLowerCase()!==targetEmail){
+            clearCachedCWT("dashboard token email mismatch");
+            throw new Error("dashboard token email mismatch");
           }
         };
 
