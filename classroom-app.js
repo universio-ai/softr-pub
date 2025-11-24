@@ -2443,7 +2443,7 @@ injectStyles(`
       transform: none !important;
       width: 100vw !important;
       max-width: 650px !important;
-      margin: 0 !important;
+      margin: 0 auto !important;
       z-index: 9999;
       padding: 12px calc(14px + env(safe-area-inset-right)) 12px calc(14px + env(safe-area-inset-left)) !important;
       box-sizing: border-box;
