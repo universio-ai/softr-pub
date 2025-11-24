@@ -216,7 +216,8 @@ window.__umHelloBubbleInstalled = true;
 
 const GRID_IDS = ['grid1','grid2','grid3','grid4','grid5'];
 const MIN_VISIBLE_PX = 16;           // smaller threshold = more tolerant
-let hello = null, host = null, retryCount = 0, maxRetries = 20, hydrated = false;
+let hello = null, host = null, retryCount = 0, maxRetries = 60, hydrated = false;
+let gridObserver = null, pendingCheck = null;
 
 function toFirst(s){return String(s||'').trim().split(/\s+/)[0]||'';}
 function fromEmailPrefix(e){
@@ -302,15 +303,31 @@ function tryUntilVisible(){
   retryCount++;
   setTimeout(tryUntilVisible, 250);
 }
+
+function scheduleVisibilityCheck(delay=120){
+  if(pendingCheck) return;
+  pendingCheck = setTimeout(()=>{ pendingCheck=null; tryUntilVisible(); }, delay);
+}
+
+function watchGrids(){
+  if(gridObserver) gridObserver.disconnect();
+  gridObserver = new MutationObserver(()=>scheduleVisibilityCheck(0));
+  GRID_IDS.forEach(id=>{
+    const el=document.getElementById(id);
+    if(!el) return;
+    gridObserver.observe(el,{attributes:true,attributeFilter:['style','class']});
+  });
+}
 let booted=false;
 function boot(){
   if(booted) return; booted=true;
   refresh();
+  watchGrids();
   tryUntilVisible();
   window.addEventListener('scroll',refresh,{passive:true});
   window.addEventListener('resize',refresh,{passive:true});
   // re-inject after Softr refreshes or your gating reruns
-  window.addEventListener('@softr/page-content-loaded',()=>{setTimeout(tryUntilVisible,200);});
+  window.addEventListener('@softr/page-content-loaded',()=>{watchGrids(); scheduleVisibilityCheck(60);});
 }
 
 (document.readyState!=='loading') ? boot() : document.addEventListener('DOMContentLoaded',boot);
