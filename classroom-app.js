@@ -3372,8 +3372,9 @@ injectStyles(`
         const mobileComposerQuery =
             typeof window.matchMedia === "function" ? window.matchMedia("(max-width: 768px)") : null;
         const placeComposer = () => {
-            if (inputRow.parentElement !== rootEl) {
-                rootEl.appendChild(inputRow);
+            if (!mobileComposerQuery) return;
+            if (inputRow.parentElement !== chatBody) {
+                chatBody.appendChild(inputRow);
             }
         };
         placeComposer();
@@ -3433,7 +3434,7 @@ injectStyles(`
       bottom: calc(var(--kb, 0px) + env(safe-area-inset-bottom)) !important;
       left: 50% !important;
       transform: translateX(-50%) !important;
-      width: 100% !important;
+      width: calc(100% - 32px) !important; /* keep desktop gutters intact */
       max-width: 650px !important;
       margin: 0 !important;
       z-index: 9999;
