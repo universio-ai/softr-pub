@@ -199,24 +199,30 @@ function authHeaders(init = {}) {
 }
 
 /** Call bootstrap edge to mint/refresh CWT */
-async function refreshCWT(emailOverride = "") {
- const EMAIL = (emailOverride || __currentEmail()).trim();
- if (!EMAIL) throw new Error("no email available for CWT refresh");
- console.debug("[auth] refreshing CWT for", EMAIL);
- const res = await fetch("https://oomcxsfikujptkfsqgzi.supabase.co/functions/v1/user-bootstrap", {
-   method: "POST",
-   headers: { "Content-Type": "application/json" },
-   body: JSON.stringify({ email: EMAIL })
- });
- if (!res.ok) throw new Error("bootstrap refresh failed");
- const out = await res.json();
- const issued = out.data?.cwt;
- const payload = __decodeJWTPayload(issued);
- if (payload?.email && payload.email.toLowerCase() !== EMAIL.toLowerCase()) {
-   clearCachedCWT("refreshCWT email mismatch");
-   throw new Error(`CWT email mismatch (wanted ${EMAIL}, got ${payload.email})`);
- }
- window.__U.cwt = issued;
+async function refreshCWT(emailOverride = "", opts = {}) {
+  const attempt = opts._attempt || 1;
+  const EMAIL = (emailOverride || __currentEmail()).trim();
+  if (!EMAIL) throw new Error("no email available for CWT refresh");
+  console.debug("[auth] refreshing CWT for", EMAIL);
+  const body = { email: EMAIL };
+  if (opts.forceReset) body.force_reset = true;
+  const res = await fetch("https://oomcxsfikujptkfsqgzi.supabase.co/functions/v1/user-bootstrap", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) throw new Error("bootstrap refresh failed");
+  const out = await res.json();
+  const issued = out.data?.cwt;
+  const payload = __decodeJWTPayload(issued);
+  if (payload?.email && payload.email.toLowerCase() !== EMAIL.toLowerCase()) {
+    clearCachedCWT("refreshCWT email mismatch");
+    if (opts.retryOnMismatch && attempt < 2) {
+      return refreshCWT(EMAIL, { ...opts, _attempt: attempt + 1, forceReset: true });
+    }
+    throw new Error(`CWT email mismatch (wanted ${EMAIL}, got ${payload.email})`);
+  }
+  window.__U.cwt = issued;
   window.__U.cwt_email = EMAIL;
   window.__U.cwt_expires_at = __toEpochSeconds(out.data?.cwt_expires_at);
   scheduleProactiveRefresh();

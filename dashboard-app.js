@@ -604,7 +604,7 @@ applyTemp(
           if(typeof clearCachedCWT==="function"){clearCachedCWT(label||"dashboard force refresh");}
 
           if(typeof refreshCWT==="function"){ 
-            try{await refreshCWT(targetEmail);}catch(err){console.warn("[dashboard] refreshCWT skipped",err);} 
+            try{await refreshCWT(targetEmail,{retryOnMismatch:true});}catch(err){console.warn("[dashboard] refreshCWT skipped",err);} 
           }else if(typeof ensureFreshToken==="function"){ 
             try{await ensureFreshToken(resolvedEmail);}catch(err){console.warn("[dashboard] ensureFreshToken skipped",err);} 
           }
