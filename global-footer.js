@@ -204,8 +204,9 @@ async function refreshCWT(emailOverride = "", opts = {}) {
   const EMAIL = (emailOverride || __currentEmail()).trim();
   if (!EMAIL) throw new Error("no email available for CWT refresh");
   console.debug("[auth] refreshing CWT for", EMAIL);
+  const forceReset = !!(opts.forceReset || opts.retryOnMismatch || emailOverride);
   const body = { email: EMAIL };
-  if (opts.forceReset) body.force_reset = true;
+  if (forceReset) body.force_reset = true;
   const res = await fetch("https://oomcxsfikujptkfsqgzi.supabase.co/functions/v1/user-bootstrap", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
