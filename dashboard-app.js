@@ -597,11 +597,20 @@ applyTemp(
 
         const fetcher=(typeof apiFetch==="function")?apiFetch:fetch;
         const doFetch=async()=>{
-          if(typeof ensureFreshToken==="function"){
+          const cwtEmail=(window.__U?.cwt_email||"").toLowerCase();
+          const targetEmail=(resolvedEmail||"").toLowerCase();
+
+          // If the cached token belongs to another user, wipe it and force a
+          // refresh specifically for the resolved email so we never borrow a
+          // prior session's Authorization header.
+          if(targetEmail && cwtEmail && cwtEmail!==targetEmail && typeof clearCachedCWT==="function" && typeof refreshCWT==="function"){
+            clearCachedCWT("dashboard fetch email mismatch");
+            try{await refreshCWT(targetEmail);}catch(err){console.warn("[dashboard] forced refresh skipped",err);}
+          }else if(typeof ensureFreshToken==="function"){
             try{await ensureFreshToken(resolvedEmail);}catch(err){console.warn("[dashboard] token refresh skipped",err);}
           }
           const headers=new Headers({"Content-Type":"application/json"});
-          if(window.__U?.cwt){headers.set("Authorization",`Bearer ${window.__U.cwt}`);}
+          if(window.__U?.cwt){headers.set("Authorization",`Bearer ${window.__U.cwt}`);} 
           const init={method:"POST",headers,body:JSON.stringify({email})};
           // Use the freshest token by running ensureFreshToken above, even if apiFetch exists
           return (fetcher===apiFetch?fetch:fetcher)("https://oomcxsfikujptkfsqgzi.supabase.co/functions/v1/fetch-profiles",init);
