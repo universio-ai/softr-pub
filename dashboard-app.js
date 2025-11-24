@@ -578,6 +578,11 @@ applyTemp(
         window.__U = window.__U || {};
         window.__U.current_email = resolvedEmail;
 
+        const cachedCwtEmail=(window.__U?.cwt_email||"").toLowerCase();
+        if(cachedCwtEmail && cachedCwtEmail!==resolvedEmail.toLowerCase() && typeof clearCachedCWT==="function"){
+          clearCachedCWT("dashboard user switch");
+        }
+
         // If the cached email doesn't match this session, drop the cache so
         // grids can't be borrowed from another user. If it matches, reuse it
         // while we wait for Supabase to respond.
@@ -591,13 +596,13 @@ applyTemp(
         }
 
         const fetcher=(typeof apiFetch==="function")?apiFetch:fetch;
-        const headers=new Headers({"Content-Type":"application/json"});
-        if(!headers.has("Authorization") && window.__U?.cwt){headers.set("Authorization",`Bearer ${window.__U.cwt}`);} 
-        const init={method:"POST",headers,body:JSON.stringify({email})};
         const doFetch=async()=>{
           if(fetcher===fetch && typeof ensureFreshToken==="function"){
             try{await ensureFreshToken(resolvedEmail);}catch(err){console.warn("[dashboard] token refresh skipped",err);}
           }
+          const headers=new Headers({"Content-Type":"application/json"});
+          if(!headers.has("Authorization") && window.__U?.cwt){headers.set("Authorization",`Bearer ${window.__U.cwt}`);}
+          const init={method:"POST",headers,body:JSON.stringify({email})};
           return fetcher("https://oomcxsfikujptkfsqgzi.supabase.co/functions/v1/fetch-profiles",init);
         };
 

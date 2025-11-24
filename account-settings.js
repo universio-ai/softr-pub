@@ -73,12 +73,12 @@
 
   async function secureFetch(input, init = {}) {
     const fetcher = (typeof apiFetch === "function") ? apiFetch : fetch;
-    const nextInit = buildAuthedInit(init);
 
     if (fetcher === fetch && typeof ensureFreshToken === "function") {
       try { await ensureFreshToken(); } catch (err) { console.warn("[account] token refresh skipped", err); }
     }
 
+    const nextInit = buildAuthedInit(init);
     return fetcher(input, nextInit);
   }
 

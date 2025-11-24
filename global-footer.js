@@ -154,6 +154,18 @@ window.__U.cwt_expires_at = __toEpochSeconds(out.data?.cwt_expires_at || out.cwt
 window.__U = window.__U || {};
 let __refreshing = null;
 
+function clearCachedCWT(reason = "") {
+  const msg = reason ? `[auth] clearing cached CWT (${reason})` : "[auth] clearing cached CWT";
+  try { console.debug(msg); } catch {}
+  clearTimeout(window.__U._refreshTimer);
+  window.__U.cwt = null;
+  window.__U.cwt_email = "";
+  window.__U.cwt_expires_at = 0;
+  __refreshing = null;
+}
+window.clearCachedCWT = clearCachedCWT;
+window.__U.clearCWT = clearCachedCWT;
+
 function __currentEmail() {
   return (
     window.__U?.current_email ||
@@ -212,8 +224,7 @@ async function ensureFreshToken(emailOverride = "") {
   const EMAIL = (emailOverride || __currentEmail() || "").toLowerCase();
   const cachedEmail = (window.__U?.cwt_email || "").toLowerCase();
   if (EMAIL && cachedEmail && EMAIL !== cachedEmail) {
-    window.__U.cwt = null;
-    window.__U.cwt_expires_at = 0;
+    clearCachedCWT("email mismatch");
   }
   const now = Math.floor(Date.now() / 1000);
   if (!window.__U?.cwt || window.__U.cwt_expires_at - now <= 150) {
@@ -247,6 +258,8 @@ async function apiFetch(input, init = {}) {
 window.addEventListener("universio:bootstrapped", () => {
   if (window.__U?.cwt) scheduleProactiveRefresh();
 });
+window.addEventListener("universio:logout", () => clearCachedCWT("universio:logout event"));
+window.addEventListener("softr:logout", () => clearCachedCWT("softr:logout event"));
 // In case bootstrap ran before this file loaded:
 if (window.__U?.cwt && window.__U?.cwt_expires_at) scheduleProactiveRefresh();
 
