@@ -90,7 +90,12 @@ function __decodeJWTPayload(token = "") {
       "https://oomcxsfikujptkfsqgzi.supabase.co/functions/v1/user-bootstrap",
       {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        credentials: "omit",
+        cache: "no-store",
+        headers: {
+          "content-type": "application/json",
+          "cache-control": "no-store",
+        },
         body: JSON.stringify({
           email: EMAIL,
           include_progress: true,
@@ -165,6 +170,33 @@ window.__U.cwt_expires_at = __toEpochSeconds(out.data?.cwt_expires_at || out.cwt
 window.__U = window.__U || {};
 let __refreshing = null;
 
+function clearSessionCaches(reason = "") {
+  try {
+    const msg = reason ? `[auth] clearing session caches (${reason})` : "[auth] clearing session caches";
+    console.debug(msg);
+  } catch {}
+  const KEYS = [
+    "universio:flags",
+    "universio:profile",
+    "universio:progress",
+    "universio:entitlements",
+    "universio:last",
+  ];
+  KEYS.forEach((k) => {
+    try { sessionStorage.removeItem(k); } catch {}
+  });
+}
+
+// If Softr reports a different user than the cached token/profile, purge all caches up front
+(() => {
+  const softrEmail = (window.logged_in_user?.softr_user_email || window.logged_in_user?.email || "").toLowerCase();
+  const cachedEmail = (window.__U?.cwt_email || "").toLowerCase();
+  if (softrEmail && cachedEmail && softrEmail !== cachedEmail) {
+    clearCachedCWT("softr user changed");
+    clearSessionCaches("softr user changed");
+  }
+})();
+
 function clearCachedCWT(reason = "") {
   const msg = reason ? `[auth] clearing cached CWT (${reason})` : "[auth] clearing cached CWT";
   try { console.debug(msg); } catch {}
@@ -209,7 +241,12 @@ async function refreshCWT(emailOverride = "", opts = {}) {
   if (forceReset) body.force_reset = true;
   const res = await fetch("https://oomcxsfikujptkfsqgzi.supabase.co/functions/v1/user-bootstrap", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    credentials: "omit",
+    cache: "no-store",
+    headers: {
+      "Content-Type": "application/json",
+      "cache-control": "no-store",
+    },
     body: JSON.stringify(body)
   });
   if (!res.ok) throw new Error("bootstrap refresh failed");
@@ -218,6 +255,7 @@ async function refreshCWT(emailOverride = "", opts = {}) {
   const payload = __decodeJWTPayload(issued);
   if (payload?.email && payload.email.toLowerCase() !== EMAIL.toLowerCase()) {
     clearCachedCWT("refreshCWT email mismatch");
+    clearSessionCaches("refreshCWT email mismatch");
     if (opts.retryOnMismatch && attempt < 2) {
       return refreshCWT(EMAIL, { ...opts, _attempt: attempt + 1, forceReset: true });
     }
@@ -250,6 +288,7 @@ async function ensureFreshToken(emailOverride = "") {
   const cachedEmail = (window.__U?.cwt_email || "").toLowerCase();
   if (EMAIL && cachedEmail && EMAIL !== cachedEmail) {
     clearCachedCWT("email mismatch");
+    clearSessionCaches("email mismatch");
   }
   const now = Math.floor(Date.now() / 1000);
   if (!window.__U?.cwt || window.__U.cwt_expires_at - now <= 150) {

@@ -579,8 +579,9 @@ applyTemp(
         window.__U.current_email = resolvedEmail;
 
         const cachedCwtEmail=(window.__U?.cwt_email||"").toLowerCase();
-        if(cachedCwtEmail && cachedCwtEmail!==resolvedEmail.toLowerCase() && typeof clearCachedCWT==="function"){
-          clearCachedCWT("dashboard user switch");
+        if(cachedCwtEmail && cachedCwtEmail!==resolvedEmail.toLowerCase()){
+          if(typeof clearCachedCWT==="function") clearCachedCWT("dashboard user switch");
+          if(typeof clearSessionCaches==="function") clearSessionCaches("dashboard user switch");
         }
 
         // If the cached email doesn't match this session, drop the cache so
@@ -602,6 +603,7 @@ applyTemp(
 
           // Always reset before minting to avoid ever reusing a prior user's token.
           if(typeof clearCachedCWT==="function"){clearCachedCWT(label||"dashboard force refresh");}
+          if(typeof clearSessionCaches==="function"){clearSessionCaches(label||"dashboard force refresh");}
 
           if(typeof refreshCWT==="function"){ 
             try{await refreshCWT(targetEmail,{retryOnMismatch:true,forceReset:true});}catch(err){console.warn("[dashboard] refreshCWT skipped",err);} 
@@ -620,7 +622,8 @@ applyTemp(
 
           const headers=new Headers({"Content-Type":"application/json"});
           if(window.__U?.cwt){headers.set("Authorization",`Bearer ${window.__U.cwt}`);}
-          const init={method:"POST",headers,body:JSON.stringify({email})};
+          const init={method:"POST",headers,body:JSON.stringify({email}),credentials:"omit",cache:"no-store"};
+          headers.set("cache-control","no-store");
           const res=await fetcher("https://oomcxsfikujptkfsqgzi.supabase.co/functions/v1/fetch-profiles",init);
 
           // If the edge rejects with an email mismatch, clear and retry once
