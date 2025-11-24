@@ -1,5 +1,5 @@
 (function () {
-  const UPDATED_AT = "2025-11-17T02:15:34Z";
+  const UPDATED_AT = "2025-11-17T03:15:27Z";
   console.log(`[UNI] classroom-app updated ${UPDATED_AT} (runtime ${new Date().toISOString()})`);
 
   const CLASSROOM_WRAPPER_ID = "universio-classroom";
@@ -3369,12 +3369,18 @@ injectStyles(`
         // ✅ only append chatCard and planCard (remove toolbar entirely)
         rootEl.append(chatCard, planCard);
 
+        const composerHome = chatBody;
+        const mobileComposerTarget = document.body || document.documentElement;
         const mobileComposerQuery =
             typeof window.matchMedia === "function" ? window.matchMedia("(max-width: 768px)") : null;
         const placeComposer = () => {
-            if (!mobileComposerQuery) return;
-            if (inputRow.parentElement !== chatBody) {
-                chatBody.appendChild(inputRow);
+            if (!mobileComposerQuery || !mobileComposerTarget) return;
+            if (mobileComposerQuery.matches) {
+                if (inputRow.parentElement !== mobileComposerTarget) {
+                    mobileComposerTarget.appendChild(inputRow);
+                }
+            } else if (inputRow.parentElement !== composerHome) {
+                composerHome.appendChild(inputRow);
             }
         };
         placeComposer();
@@ -3401,8 +3407,8 @@ injectStyles(`
     #${ROOT_ID} .uni-card {
       display: flex;
       flex-direction: column;
-      width: min(1040px, calc(100% - 64px));
-      margin: 0 auto;              /* keep chat container centered with gutters */
+      width: min(920px, calc(100% - 120px));
+      margin: 0 auto;              /* keep chat container centered with wider gutters */
     }
     #${ROOT_ID} .uni-section {
       display: flex;
