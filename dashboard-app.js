@@ -597,13 +597,14 @@ applyTemp(
 
         const fetcher=(typeof apiFetch==="function")?apiFetch:fetch;
         const doFetch=async()=>{
-          if(fetcher===fetch && typeof ensureFreshToken==="function"){
+          if(typeof ensureFreshToken==="function"){
             try{await ensureFreshToken(resolvedEmail);}catch(err){console.warn("[dashboard] token refresh skipped",err);}
           }
           const headers=new Headers({"Content-Type":"application/json"});
-          if(!headers.has("Authorization") && window.__U?.cwt){headers.set("Authorization",`Bearer ${window.__U.cwt}`);}
+          if(window.__U?.cwt){headers.set("Authorization",`Bearer ${window.__U.cwt}`);}
           const init={method:"POST",headers,body:JSON.stringify({email})};
-          return fetcher("https://oomcxsfikujptkfsqgzi.supabase.co/functions/v1/fetch-profiles",init);
+          // Use the freshest token by running ensureFreshToken above, even if apiFetch exists
+          return (fetcher===apiFetch?fetch:fetcher)("https://oomcxsfikujptkfsqgzi.supabase.co/functions/v1/fetch-profiles",init);
         };
 
         doFetch()
