@@ -596,7 +596,7 @@ applyTemp(
         }
 
         const fetcher=(typeof apiFetch==="function")?apiFetch:fetch;
-        const doFetch=async()=>{
+        const doFetch=async(attempt=1)=>{
           const cwtEmail=(window.__U?.cwt_email||"").toLowerCase();
           const targetEmail=(resolvedEmail||"").toLowerCase();
 
@@ -609,11 +609,27 @@ applyTemp(
           }else if(typeof ensureFreshToken==="function"){
             try{await ensureFreshToken(resolvedEmail);}catch(err){console.warn("[dashboard] token refresh skipped",err);}
           }
+
           const headers=new Headers({"Content-Type":"application/json"});
-          if(window.__U?.cwt){headers.set("Authorization",`Bearer ${window.__U.cwt}`);} 
+          if(window.__U?.cwt){headers.set("Authorization",`Bearer ${window.__U.cwt}`);}
           const init={method:"POST",headers,body:JSON.stringify({email})};
-          // Use the freshest token by running ensureFreshToken above, even if apiFetch exists
-          return (fetcher===apiFetch?fetch:fetcher)("https://oomcxsfikujptkfsqgzi.supabase.co/functions/v1/fetch-profiles",init);
+          const res=await (fetcher===apiFetch?fetch:fetcher)("https://oomcxsfikujptkfsqgzi.supabase.co/functions/v1/fetch-profiles",init);
+
+          // If the edge rejects with an email mismatch, clear and retry once
+          // with a freshly minted token for the resolved email.
+          if(attempt===1 && res.status===403){
+            try{
+              const body=await res.clone().json();
+              if(body?.error && String(body.error).toLowerCase().includes("email mismatch") && typeof clearCachedCWT==="function"){
+                clearCachedCWT("dashboard retry after mismatch");
+                if(typeof refreshCWT==="function"){
+                  try{await refreshCWT(targetEmail||resolvedEmail);}catch(err){console.warn("[dashboard] retry refresh failed",err);} }
+                return doFetch(attempt+1);
+              }
+            }catch(err){console.warn("[dashboard] mismatch retry check failed",err);}
+          }
+
+          return res;
         };
 
         doFetch()
