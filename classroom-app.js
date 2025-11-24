@@ -3401,7 +3401,8 @@ injectStyles(`
     #${ROOT_ID} .uni-card {
       display: flex;
       flex-direction: column;
-      width: 100%;
+      width: min(1040px, calc(100% - 64px));
+      margin: 0 auto;              /* keep chat container centered with gutters */
     }
     #${ROOT_ID} .uni-section {
       display: flex;
