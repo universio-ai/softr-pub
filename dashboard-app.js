@@ -440,6 +440,12 @@ background-clip: padding-box !important;
     return states;
   };
 
+  const showResumeFallback=()=>{
+    const states={grid1:false,grid2:true,grid3:false,grid4:false,grid5:false};
+    applyStates(states,"Resume fallback applied");
+    return states;
+  };
+
   // Keep loader up-front; it will be dismissed once a visible grid exists
   showLoader();
 
@@ -566,9 +572,10 @@ applyTemp(
           const data = res.data || res; // accept either shape
           const error = res.error;
           if(error||!data){
+            const cachedStates=cached?.states;
             cached=null;
             sessionStorage.removeItem(CACHE_KEY);
-            const fallbackStates=showFreshUser();
+            const fallbackStates=cachedStates||showResumeFallback();
             applyFinal(fallbackStates,"Final grid state (error/empty response)",false);
             return;
           }
@@ -608,9 +615,10 @@ applyTemp(
         })
         .catch(e=>{
           console.error("❌ Fetch failed:",e);
+          const cachedStates=cached?.states;
           cached=null;
           sessionStorage.removeItem(CACHE_KEY);
-          const fallbackStates=showFreshUser();
+          const fallbackStates=cachedStates||showResumeFallback();
           applyFinal(fallbackStates,"Final grid state (fetch failed)",false);
         });
       });
