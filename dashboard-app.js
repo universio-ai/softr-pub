@@ -596,24 +596,28 @@ applyTemp(
         }
 
         const fetcher=(typeof apiFetch==="function")?apiFetch:fetch;
-        const doFetch=async(attempt=1)=>{
-          const cwtEmail=(window.__U?.cwt_email||"").toLowerCase();
+        const refreshDashboardToken=async(label)=>{
           const targetEmail=(resolvedEmail||"").toLowerCase();
+          if(!targetEmail) return;
 
-          // If the cached token belongs to another user, wipe it and force a
-          // refresh specifically for the resolved email so we never borrow a
-          // prior session's Authorization header.
-          if(targetEmail && cwtEmail && cwtEmail!==targetEmail && typeof clearCachedCWT==="function" && typeof refreshCWT==="function"){
-            clearCachedCWT("dashboard fetch email mismatch");
-            try{await refreshCWT(targetEmail);}catch(err){console.warn("[dashboard] forced refresh skipped",err);}
+          // Always reset before minting to avoid ever reusing a prior user's token.
+          if(typeof clearCachedCWT==="function"){clearCachedCWT(label||"dashboard force refresh");}
+
+          if(typeof refreshCWT==="function"){
+            try{await refreshCWT(targetEmail);}catch(err){console.warn("[dashboard] refreshCWT skipped",err);}
           }else if(typeof ensureFreshToken==="function"){
-            try{await ensureFreshToken(resolvedEmail);}catch(err){console.warn("[dashboard] token refresh skipped",err);}
+            try{await ensureFreshToken(resolvedEmail);}catch(err){console.warn("[dashboard] ensureFreshToken skipped",err);}
           }
+        };
+
+        const doFetch=async(attempt=1)=>{
+          // Always mint a fresh token for the resolved email before sending the request.
+          await refreshDashboardToken(attempt===1?"dashboard initial fetch":"dashboard retry fetch");
 
           const headers=new Headers({"Content-Type":"application/json"});
           if(window.__U?.cwt){headers.set("Authorization",`Bearer ${window.__U.cwt}`);}
           const init={method:"POST",headers,body:JSON.stringify({email})};
-          const res=await (fetcher===apiFetch?fetch:fetcher)("https://oomcxsfikujptkfsqgzi.supabase.co/functions/v1/fetch-profiles",init);
+          const res=await fetcher("https://oomcxsfikujptkfsqgzi.supabase.co/functions/v1/fetch-profiles",init);
 
           // If the edge rejects with an email mismatch, clear and retry once
           // with a freshly minted token for the resolved email.
@@ -621,9 +625,7 @@ applyTemp(
             try{
               const body=await res.clone().json();
               if(body?.error && String(body.error).toLowerCase().includes("email mismatch") && typeof clearCachedCWT==="function"){
-                clearCachedCWT("dashboard retry after mismatch");
-                if(typeof refreshCWT==="function"){
-                  try{await refreshCWT(targetEmail||resolvedEmail);}catch(err){console.warn("[dashboard] retry refresh failed",err);} }
+                await refreshDashboardToken("dashboard retry after mismatch");
                 return doFetch(attempt+1);
               }
             }catch(err){console.warn("[dashboard] mismatch retry check failed",err);}
