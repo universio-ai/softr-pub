@@ -1,3 +1,4 @@
+<script>
 (function () {
   const UPDATED_AT = "2025-11-17T02:15:34Z";
   console.log(`[UNI] classroom-app updated ${UPDATED_AT} (runtime ${new Date().toISOString()})`);
@@ -1195,6 +1196,27 @@ window.addEventListener("universio:bootstrapped", () => {
                 pill.style.left = "auto";
                 pill.style.visibility = "visible";
             }
+                /* === NAV MASK POSITION START === */
+                const mask = document.getElementById("uniNavMask");
+                if (pill && mask) {
+                  const rect = pill.getBoundingClientRect();
+                
+                  mask.style.display = "block";
+                
+                  // Align vertically with pill
+                  mask.style.top = rect.top + "px";
+                
+                  // Less to the left → use -40 instead of -140
+                  mask.style.left = (rect.left - 10) + "px";
+                
+                  // Extend more to the right → increase width
+                  mask.style.width = "380px";   // previously 260px
+                
+                  // Remove shadow
+                  mask.style.boxShadow = "none";
+                }
+                /* === NAV MASK POSITION END === */
+
         }
 
         function ensureNavProgressPill() {
@@ -3649,6 +3671,30 @@ injectStyles(`
   }
 `);
 
+/* === NAV MASK INSERT START === */
+injectStyles(`
+  #uniNavMask {
+    position: fixed;
+    top: 0;
+    height: 56px;                     /* adjust if your navbar is taller/shorter */
+    background: #ffffff;
+    border-radius: 16px;
+    z-index: 2147483646;              /* BELOW pill, ABOVE navbar links */
+    pointer-events: none;
+    display: none;                    /* shown by JS */
+    box-shadow: none !important;      /* no shadow */
+  }
+
+  /* Hide mask entirely on mobile */
+  @media (max-width: 820px) {
+    #uniNavMask {
+      display: none !important;
+    }
+  }
+`);
+/* === NAV MASK INSERT END === */
+
+
         injectStyles(`
   /* Purple pulse for mic button */
   #${ROOT_ID} .mic-btn { position: relative; transition: transform .12s ease; }
@@ -5513,6 +5559,17 @@ Ready to begin?`,
             window.addEventListener("load", fireTutorOpen);
 
             ensureNavProgressPill();
+            
+            /* === NAV MASK CREATE START === */
+            let navMask = document.getElementById("uniNavMask");
+            if (!navMask) {
+              navMask = document.createElement("div");
+              navMask.id = "uniNavMask";
+              document.body.appendChild(navMask);
+            }
+            /* === NAV MASK CREATE END === */
+
+
             setTimeout(positionNavPill, 0);
             window.addEventListener("load", positionNavPill);
 
@@ -5630,3 +5687,4 @@ Ready to begin?`,
 
   Promise.all([loadMarked(), wrapperReady]).then(init);
 })();
+</script>
