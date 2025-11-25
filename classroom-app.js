@@ -1,4 +1,3 @@
-<script>
 (function () {
   const UPDATED_AT = "2025-11-17T02:15:34Z";
   console.log(`[UNI] classroom-app updated ${UPDATED_AT} (runtime ${new Date().toISOString()})`);
@@ -5687,4 +5686,3 @@ Ready to begin?`,
 
   Promise.all([loadMarked(), wrapperReady]).then(init);
 })();
-</script>
