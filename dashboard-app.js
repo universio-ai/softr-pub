@@ -678,13 +678,13 @@ applyTemp(
 
           const states={
             grid1: (inProgress === 0 && !hasCompletedCert),
-            grid2: inProgress >= 1,
+            grid2: inProgress >= 1 || hasCompletedCert,
             // REPLACE old rule:
             // if (completed >= 1) show($("grid3"), "flex");
             // WITH status-based rule + safe fallback:
             grid3: hasCompletedCert,
             grid4: certCount >= 1,
-            grid5: hasCompletedNode
+            grid5: hasCompletedNode || hasCompletedCert,
           };
 
           if(!Object.values(states).some(Boolean)) states.grid1=true;
