@@ -682,7 +682,7 @@ applyTemp(
             // REPLACE old rule:
             // if (completed >= 1) show($("grid3"), "flex");
             // WITH status-based rule + safe fallback:
-            grid3: (hasCompletedCert || completed >= 1),
+            grid3: hasCompletedCert,
             grid4: certCount >= 1,
             grid5: hasCompletedNode
           };
