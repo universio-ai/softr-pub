@@ -2526,6 +2526,8 @@ injectStyles(`
             [makeLoader()]
         );
 
+        chatCard.appendChild(shellLoader);
+
         function showShellLoader() {
             shellLoader.hidden = false;
             shellLoader.setAttribute("aria-hidden", "false");
