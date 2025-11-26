@@ -714,6 +714,20 @@
     return wrap;
   }
 
+  (function() {
+  const mq = window.matchMedia("(max-width: 600px)");
+  if (mq.matches) {
+    const style = document.createElement("style");
+    style.textContent = `
+      #uni-summary-root .uni-loading-dots {
+        margin-left: 24px !important;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+})();
+
+
   function renderLoadingPlaceholder() {
     bodyEl.innerHTML = "";
     const p = document.createElement("p");
