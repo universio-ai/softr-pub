@@ -4349,6 +4349,11 @@ injectStyles(`
                         const pct = coerceProgressPercent(data.node_percent);
                         updateProgressUI(pct);
                         console.log("[UNI][pill] updated from node_percent:", pct + "%");
+
+                        // NEW: persist to /lesson/progress so backend can emit node_progress
+                    markProgress(pct, true).catch((err) => {
+                    console.warn("[UNI] markProgress from node_percent failed", err);
+                      });
                     }
 
                     // ✅ analytics (keep one)
