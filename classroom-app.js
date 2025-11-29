@@ -1307,13 +1307,13 @@ window.addEventListener("universio:bootstrapped", () => {
                 when: new Date().toISOString(),
                 source: "web",
                 device: navigator.userAgent,
-                ...(window.voice?.active ? { voice_mode: true } : {}),
+                ...(voice?.active ? { voice_mode: true } : {}),
             };
             let j = null; // ✅ define outside try so finally can see it
             try {
                 const r = await apiFetch("https://oomcxsfikujptkfsqgzi.supabase.co/functions/v1/ai-tutor-api/time/ingest", {
                   method: "POST",
-                  headers: { ...(window.voice?.active ? { "x-uni-voice": "1" } : {}) },
+                  headers: { ...(voice?.active ? { "x-uni-voice": "1" } : {}) },
                   body: JSON.stringify(payload),
                 });
 
