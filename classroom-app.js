@@ -1320,8 +1320,8 @@ window.addEventListener("universio:bootstrapped", () => {
                 j = await r.json().catch(() => ({}));
                 console.log("[time-ingest]", j);
 
-              if (json && json.updated && typeof json.updated.node_percent === "number") {
-                    const raw = Number(json.updated.node_percent);
+                if (j && j.updated && typeof j.updated.node_percent === "number") {
+                    const raw = Number(j.updated.node_percent);
                     if (!Number.isNaN(raw)) {
                         const scoreLike = raw <= 1 ? raw : raw / 100;
                         const pct = coerceProgressPercent(scoreLike);
@@ -1329,7 +1329,6 @@ window.addEventListener("universio:bootstrapped", () => {
                         updateProgressUI(pct);
                     }
                 }
-
 
                 // --- Emit remaining minutes for header + pills ---
                 const remainingMin = j?.updated?.remaining_today_minutes ?? j?.updated?.remaining_minutes ?? (j?.updated?.remaining_ms ? Math.floor(j.updated.remaining_ms / 60000) : null);
