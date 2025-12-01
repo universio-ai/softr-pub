@@ -3744,6 +3744,7 @@ injectStyles(`
     background: var(--input-bg, #f2f2f2) !important;
     color: #000 !important;
     border:1px solid #000 !important;
+    font-weight: 600;
   }
 `);
 
@@ -3776,6 +3777,7 @@ injectStyles(`
     box-shadow: 0 1px 2px rgba(0,0,0,.15);
     -webkit-font-smoothing: antialiased;
     visibility: hidden;
+    font-weight: 600;
   }
 `);
 
