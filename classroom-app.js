@@ -1154,7 +1154,7 @@ window.addEventListener("universio:bootstrapped", () => {
                 // ✅ Animate upward pulse for visible progress jumps
                 navPill.setAttribute("data-anim", "up");
                 setTimeout(() => navPill.removeAttribute("data-anim"), 300);
-                navPill.style.color = n >= 50 ? "#fff" : "#000"; // ⬅️ NEW: keep text readable
+                navPill.style.color = "var(--accent-2, #B874FF)"; // Align with timer accent
                 // width may have changed → reposition to keep the 8px hug
                 positionNavPill();
             }
