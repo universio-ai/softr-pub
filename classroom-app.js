@@ -3756,8 +3756,8 @@ injectStyles(`
     border: 1px solid #000;
     background: linear-gradient(
       to right,
-      #b4b4b4 0%,
-      #b4b4b4 var(--p),
+      #cccccc 0%,
+      #cccccc var(--p),
       #fff var(--p),
       #fff 100%
     );
