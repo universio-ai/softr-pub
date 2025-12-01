@@ -3753,11 +3753,11 @@ injectStyles(`
     position: fixed;
     z-index: 2147483647;
     --p: 0%;
-    border: 1px solid #1a1a1a;
+    border: 1px solid #565656;
     background: linear-gradient(
       to right,
-      #1a1a1a 0%,
-      #1a1a1a var(--p),
+      #565656 0%,
+      #565656 var(--p),
       #f2f2f2 var(--p),
       #f2f2f2 100%
     );
