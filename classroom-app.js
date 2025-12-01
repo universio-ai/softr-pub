@@ -3758,8 +3758,8 @@ injectStyles(`
       to right,
       #000 0%,
       #000 var(--p),
-      transparent var(--p),
-      transparent 100%
+      #f5f5f5 var(--p),
+      #f5f5f5 100%
     );
     color: var(--accent-2, #B874FF);
     border-radius: 999px;
