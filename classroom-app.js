@@ -3741,7 +3741,7 @@ injectStyles(`
         // Make the in-header pill black/white as requested
         injectStyles(`
   #${ROOT_ID} .uni-progress{
-    background: var(--input-bg, #f2f2f2) !important;
+    background: #fff !important;
     color: #000 !important;
     border:1px solid #000 !important;
     font-weight: 600;
@@ -3756,10 +3756,10 @@ injectStyles(`
     border: 1px solid #000;
     background: linear-gradient(
       to right,
-      #565656 0%,
-      #565656 var(--p),
-      #f2f2f2 var(--p),
-      #f2f2f2 100%
+      #b4b4b4 0%,
+      #b4b4b4 var(--p),
+      #fff var(--p),
+      #fff 100%
     );
     color: #000 !important;
     border-radius: 999px;
