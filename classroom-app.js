@@ -1154,7 +1154,6 @@ window.addEventListener("universio:bootstrapped", () => {
                 // ✅ Animate upward pulse for visible progress jumps
                 navPill.setAttribute("data-anim", "up");
                 setTimeout(() => navPill.removeAttribute("data-anim"), 300);
-                navPill.style.setProperty("color", n >= 50 ? "#fff" : "#000", "important"); // ⬅️ ensure readable contrast
                 // width may have changed → reposition to keep the 8px hug
                 positionNavPill();
             }
@@ -3742,9 +3741,9 @@ injectStyles(`
         // Make the in-header pill black/white as requested
         injectStyles(`
   #${ROOT_ID} .uni-progress{
-    background:#000 !important;
-    color: var(--accent-2, #B874FF) !important;
-    border:1px solid rgba(255,255,255,.18) !important;
+    background: var(--input-bg, #f2f2f2) !important;
+    color: #000 !important;
+    border:1px solid #000 !important;
   }
 `);
 
@@ -3753,7 +3752,7 @@ injectStyles(`
     position: fixed;
     z-index: 2147483647;
     --p: 0%;
-    border: 1px solid #565656;
+    border: 1px solid #000;
     background: linear-gradient(
       to right,
       #565656 0%,
@@ -3761,7 +3760,7 @@ injectStyles(`
       #f2f2f2 var(--p),
       #f2f2f2 100%
     );
-    color: var(--accent-2, #B874FF);
+    color: #000 !important;
     border-radius: 999px;
     padding: 6px 8px;
     font-size: .75rem;
