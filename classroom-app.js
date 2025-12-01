@@ -3743,7 +3743,7 @@ injectStyles(`
         injectStyles(`
   #${ROOT_ID} .uni-progress{
     background:#000 !important;
-    color:#fff !important;
+    color: var(--accent-2, #B874FF) !important;
     border:1px solid rgba(255,255,255,.18) !important;
   }
 `);
@@ -3761,7 +3761,7 @@ injectStyles(`
       transparent var(--p),
       transparent 100%
     );
-    color: #000;
+    color: var(--accent-2, #B874FF);
     border-radius: 999px;
     padding: 6px 8px;
     font-size: .75rem;
