@@ -716,6 +716,8 @@ applyTemp(
 }
 (function(){
  let hasRun=false;
+ let softrReady=false;
+
  const userReady=()=>{
    const u=window.logged_in_user||(window.Softr&&window.Softr.currentUser)||(window.__U&&window.__U.profile);
    return !!(u && (u.email||u.softr_user_email));
@@ -723,17 +725,17 @@ applyTemp(
 
  const gridsReady=()=>['grid1','grid2','grid3','grid4','grid5'].some(id=>document.getElementById(id));
 
-  const waitForReady=(timeout=1400)=>new Promise(resolve=>{
+ const waitForReady=(timeout=1800)=>new Promise(resolve=>{
    const deadline=Date.now()+timeout;
    (function loop(){
-     if(userReady() && gridsReady()) return resolve();
+     if(softrReady && userReady() && gridsReady()) return resolve();
      if(Date.now()>deadline) return resolve();
      requestAnimationFrame(loop);
    })();
  });
 
  const runOnce=()=>{
-   if(hasRun)return;
+   if(hasRun || !softrReady) return;
    hasRun=true;
    waitForReady().then(()=>{
      console.log("⚡ Universio grids initializing");
@@ -741,13 +743,15 @@ applyTemp(
    });
  };
 
- window.addEventListener("softr:pageLoaded",runOnce,{once:true});
+ const markSoftrReady=()=>{ softrReady=true; runOnce(); };
+
+ window.addEventListener("softr:pageLoaded",markSoftrReady,{once:true});
  /* Optional: also listen to Softr's other load event without removing yours */
- window.addEventListener("@softr/page-content-loaded",runOnce,{once:true});
- document.addEventListener("DOMContentLoaded",runOnce,{once:true});
- // In case the events above fired before this script executed, run immediately.
+ window.addEventListener("@softr/page-content-loaded",markSoftrReady,{once:true});
+ document.addEventListener("DOMContentLoaded",()=>{ setTimeout(markSoftrReady, 60); },{once:true});
+ // In case the events above fired before this script executed, run after a short tick.
  if (document.readyState !== 'loading') {
-   setTimeout(runOnce, 0);
+   setTimeout(markSoftrReady, 80);
  }
 })();
 
