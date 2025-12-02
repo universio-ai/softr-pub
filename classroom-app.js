@@ -1256,11 +1256,65 @@ window.addEventListener("universio:bootstrapped", () => {
             return pill;
         }
 
-        // If we have a cached remaining, show it immediately
+        let latestRemainingMin = null;
+        let minutesWatcher = null;
+
+        function applyMinutesLeft(remaining) {
+            if (typeof remaining !== "number" || Number.isNaN(remaining)) return;
+            latestRemainingMin = remaining;
+
+            const applyNow = () => {
+                const el = document.getElementById("uniTimerFixed");
+                const leftEl = document.getElementById("uniTimerLeft");
+                const timeEl = document.getElementById("uniTimerTime");
+                if (!el || !leftEl) return false;
+
+                // Write tooltip + visible subline
+                el.title = `${remaining} min left`;
+                leftEl.textContent = `${remaining} min left`;
+
+                // Keep ARIA label in sync (a11y)
+                el.setAttribute(
+                    "aria-label",
+                    `${timeEl?.textContent || ""}${leftEl.textContent ? ", " + leftEl.textContent : ""}`
+                );
+
+                // Keep the overlay pill hugging the timer
+                positionNavPill?.();
+
+                // Optional: auto-pause at limit
+                if (remaining <= 0) {
+                    window.uniTimer?.pause?.();
+                }
+
+                return true;
+            };
+
+            // If the timer isn't mounted yet, watch for it once
+            if (!applyNow()) {
+                if (!minutesWatcher) {
+                    minutesWatcher = new MutationObserver(() => {
+                        if (applyNow()) minutesWatcher?.disconnect?.();
+                    });
+                    minutesWatcher.observe(document.body, { childList: true, subtree: true });
+                }
+            }
+        }
+
+        function broadcastMinutesLeft(remaining) {
+            if (typeof remaining !== "number" || Number.isNaN(remaining)) return;
+            try {
+                localStorage.setItem(LEFT_KEY, String(remaining));
+            } catch {}
+            applyMinutesLeft(remaining);
+            window.dispatchEvent(new CustomEvent("uni:minutes-left", { detail: { remaining } }));
+        }
+
+        // If we have a cached remaining, show it immediately (and re-apply once timer mounts)
         try {
             const cachedLeft = Number(localStorage.getItem(LEFT_KEY));
             if (!Number.isNaN(cachedLeft)) {
-                window.dispatchEvent(new CustomEvent("uni:minutes-left", { detail: { remaining: cachedLeft } }));
+                broadcastMinutesLeft(cachedLeft);
             }
         } catch {}
 
@@ -1283,10 +1337,7 @@ window.addEventListener("universio:bootstrapped", () => {
                 : Math.floor(remainingMs / 60000);
 
             if (Number.isFinite(remainingMin)) {
-                try {
-                    localStorage.setItem(LEFT_KEY, String(remainingMin));
-                } catch {}
-                window.dispatchEvent(new CustomEvent("uni:minutes-left", { detail: { remaining: remainingMin } }));
+                broadcastMinutesLeft(remainingMin);
             }
         }
 
@@ -1336,15 +1387,7 @@ window.addEventListener("universio:bootstrapped", () => {
                 const remainingMin = j?.updated?.remaining_today_minutes ?? j?.updated?.remaining_minutes ?? j?.updated?.remaining_min ?? (j?.updated?.remaining_ms ? Math.floor(j.updated.remaining_ms / 60000) : null);
 
                 if (typeof remainingMin === "number") {
-                    try {
-                        localStorage.setItem(LEFT_KEY, String(remainingMin));
-                    } catch {}
-                    window.dispatchEvent(new CustomEvent("uni:minutes-left", { detail: { remaining: remainingMin } }));
-
-                    // Auto-pause if out of time
-                    if (remainingMin <= 0) {
-                        window.uniTimer?.pause?.();
-                    }
+                    broadcastMinutesLeft(remainingMin);
                 }
             } catch (err) {
                 console.warn("[time-ingest failed]", err);
@@ -1360,28 +1403,7 @@ window.addEventListener("universio:bootstrapped", () => {
 
         // Update the header timer's "minutes left" subline whenever time-ingest replies
         window.addEventListener("uni:minutes-left", (e) => {
-            const remaining = e.detail?.remaining; // ✅ will now be minutes, integer
-
-            const el = document.getElementById("uniTimerFixed");
-            const leftEl = document.getElementById("uniTimerLeft");
-            const timeEl = document.getElementById("uniTimerTime");
-            if (!el || !leftEl || typeof remaining !== "number") return;
-
-            // Write tooltip + visible subline
-            el.title = `${remaining} min left`;
-            leftEl.textContent = `${remaining} min left`;
-
-            // Keep ARIA label in sync (a11y)
-            el.setAttribute("aria-label", `${timeEl?.textContent || ""}${leftEl.textContent ? ", " + leftEl.textContent : ""}`);
-
-            // Keep the overlay pill hugging the timer
-            positionNavPill?.();
-
-            // Optional: auto-pause at limit
-            if (remaining <= 0) {
-                window.uniTimer?.pause?.();
-                // addMessage?.('tutor', '⏳ You’ve reached today’s study time for your plan.', false);
-            }
+            applyMinutesLeft(e.detail?.remaining);
         });
 
 
