@@ -3869,6 +3869,21 @@ injectStyles(`
         );
 
         // -------- Chat logic --------
+        function dedupeConversation(arr = []) {
+            const seen = new Set();
+            const allowed = new Set(["user", "tutor", "system", "uni"]);
+            const clean = [];
+            for (const msg of Array.isArray(arr) ? arr : []) {
+                if (!msg || typeof msg.text !== "string") continue;
+                const sender = allowed.has(msg.sender) ? msg.sender : "tutor";
+                const key = `${sender}|${msg.text.trim()}`;
+                if (seen.has(key)) continue;
+                seen.add(key);
+                clean.push({ ...msg, sender });
+            }
+            return clean;
+        }
+
         let conversation = [];
         function addMessage(sender, text, save = true) {
             // Normalize sender
@@ -4015,6 +4030,7 @@ injectStyles(`
 
         // --- Write conversation to Softr (delete+insert or append) ---
         function saveConversationState(mode = "update") {
+            conversation = dedupeConversation(conversation);
             const email = resolveUserEmail();
             const { courseName, moduleName } = resolveCourseModuleNames();
 
@@ -4107,15 +4123,16 @@ injectStyles(`
                 .then((r) => (r.ok ? r.json() : null))
                 .then((data) => {
                     if (data && Array.isArray(data.messages)) {
+                        const incoming = dedupeConversation(data.messages);
                         // 👉 Ensure UNI cheers replay with the purple-outlined bubble + avatar
-                        data.messages.forEach((m) => {
+                        incoming.forEach((m) => {
                             if (m.sender === "uni") {
                                 renderUniBubble(m.text, false); // don’t re-save history on paint
                             } else {
                                 addMessage(m.sender, m.text, false);
                             }
                         });
-                        conversation = data.messages.slice(0);
+                        conversation = incoming.slice(0);
                         // ✅ Only scroll if chat actually overflows
                         setTimeout(() => {
                             if (messagesEl.scrollHeight > messagesEl.clientHeight) {
