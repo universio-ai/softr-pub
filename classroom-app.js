@@ -1276,8 +1276,11 @@ window.addEventListener("universio:bootstrapped", () => {
             }
 
             const j = await r.json();
+            const explicitRemainingMin = Number(j?.remaining_min ?? NaN);
             const remainingMs = Number(j?.remaining_ms ?? NaN);
-            const remainingMin = Math.floor(remainingMs / 60000);
+            const remainingMin = Number.isFinite(explicitRemainingMin)
+                ? explicitRemainingMin
+                : Math.floor(remainingMs / 60000);
 
             if (Number.isFinite(remainingMin)) {
                 try {
@@ -1330,7 +1333,7 @@ window.addEventListener("universio:bootstrapped", () => {
                 }
 
                 // --- Emit remaining minutes for header + pills ---
-                const remainingMin = j?.updated?.remaining_today_minutes ?? j?.updated?.remaining_minutes ?? (j?.updated?.remaining_ms ? Math.floor(j.updated.remaining_ms / 60000) : null);
+                const remainingMin = j?.updated?.remaining_today_minutes ?? j?.updated?.remaining_minutes ?? j?.updated?.remaining_min ?? (j?.updated?.remaining_ms ? Math.floor(j.updated.remaining_ms / 60000) : null);
 
                 if (typeof remainingMin === "number") {
                     try {
