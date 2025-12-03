@@ -745,14 +745,55 @@ applyTemp(
 
  const markSoftrReady=()=>{ softrReady=true; runOnce(); };
 
- window.addEventListener("softr:pageLoaded",markSoftrReady,{once:true});
- /* Optional: also listen to Softr's other load event without removing yours */
- window.addEventListener("@softr/page-content-loaded",markSoftrReady,{once:true});
- document.addEventListener("DOMContentLoaded",()=>{ setTimeout(markSoftrReady, 60); },{once:true});
- // In case the events above fired before this script executed, run after a short tick.
- if (document.readyState !== 'loading') {
-   setTimeout(markSoftrReady, 80);
- }
+window.addEventListener("softr:pageLoaded",markSoftrReady,{once:true});
+/* Optional: also listen to Softr's other load event without removing yours */
+window.addEventListener("@softr/page-content-loaded",markSoftrReady,{once:true});
+document.addEventListener("DOMContentLoaded",()=>{ setTimeout(markSoftrReady, 60); },{once:true});
+// In case the events above fired before this script executed, run after a short tick.
+if (document.readyState !== 'loading') {
+  setTimeout(markSoftrReady, 80);
+}
+})();
+
+// 6b) EMPTY STATE WATCHER → REFRESH GRID VISIBILITY
+(function(){
+  const EMPTY_COPY = "No results found, try adjusting your search and filters.";
+  const INTERVAL_MS = 900;
+  const MAX_DURATION_MS = 12000;
+  let intervalId=null, deadline=0, refreshed=false;
+
+  const containsEmptyState=()=>{
+    const scope=document.getElementById('page-content')||document.body;
+    if(!scope) return false;
+    return scope.textContent && scope.textContent.includes(EMPTY_COPY);
+  };
+
+  const refreshGrids=(reason)=>{
+    if(refreshed) return;
+    refreshed=true;
+    console.debug(`🔁 Refreshing grid visibility (${reason})`);
+    try{ toggleGridsUnified(); }catch(e){ console.error('❌ Grid visibility refresh failed:',e); }
+  };
+
+  const poll=()=>{
+    if(Date.now()>deadline){
+      clearInterval(intervalId); intervalId=null; return;
+    }
+    if(containsEmptyState()){
+      clearInterval(intervalId); intervalId=null;
+      refreshGrids('empty state detected');
+    }
+  };
+
+  const startPolling=()=>{
+    if(intervalId||refreshed) return;
+    deadline=Date.now()+MAX_DURATION_MS;
+    poll();
+    intervalId=setInterval(poll,INTERVAL_MS);
+  };
+
+  window.addEventListener('load',startPolling,{once:true});
+  window.addEventListener('@softr/page-content-loaded',startPolling,{once:true});
 })();
 
 // 7) ANALYTICS
