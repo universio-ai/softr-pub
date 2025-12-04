@@ -413,6 +413,14 @@
     const host = document.getElementById("universio-summary");
     if (!host) return;
 
+    if (window.__uniSummaryInitialized) return;
+    if (host.querySelector("#uni-summary-root")) {
+      window.__uniSummaryInitialized = true;
+      return;
+    }
+
+    window.__uniSummaryInitialized = true;
+
     const root = document.createElement("div");
     root.id = "uni-summary-root";
     root.setAttribute("role", "region");
