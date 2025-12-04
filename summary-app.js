@@ -849,7 +849,8 @@
     return cached;
   }
 
-  function resolveUserEmail() {
+  function resolveUserEmail(options = {}) {
+    const { allowCached = true } = options;
     const softr =
       window.logged_in_user?.softr_user_email ||
       window.logged_in_user?.email ||
@@ -860,7 +861,7 @@
       window.__U?.profile?.softr_user_email ||
       window.__U?.profile?.user_email ||
       "";
-    const cached = readCachedEmail();
+    const cached = allowCached ? readCachedEmail() : "";
     let resolved = softr || bootstrapEmail || cached || "";
     if (resolved) {
       rememberUserEmail(resolved);
@@ -869,12 +870,12 @@
     return resolved;
   }
 
-  async function waitForUserEmail(timeoutMs = 4000) {
+  async function waitForUserEmail(timeoutMs = 4000, options = {}) {
     const deadline = Date.now() + timeoutMs;
-    let email = resolveUserEmail();
+    let email = resolveUserEmail(options);
     while (!email && Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, 120));
-      email = resolveUserEmail();
+      email = resolveUserEmail(options);
     }
     return email;
   }
@@ -899,9 +900,14 @@
     if (pendingCwtPromise) return pendingCwtPromise;
 
     pendingCwtPromise = (async () => {
-      let email = resolveUserEmail();
+      // Prefer a fresh Softr session email and only fall back to cached values
+      // after giving the client time to hydrate the logged-in user.
+      let email = resolveUserEmail({ allowCached: false });
       if (!email) {
-        email = await waitForUserEmail(6000);
+        email = await waitForUserEmail(6000, { allowCached: false });
+      }
+      if (!email) {
+        email = resolveUserEmail();
       }
       if (!email) throw new Error("Cannot fetch CWT — missing user email");
       rememberUserEmail(email);
@@ -1334,10 +1340,13 @@
     const nodeId = cleanId(row.node_id).toUpperCase();
     if (!courseId || !nodeId) return;
 
-    let email = cleanId(row.email || resolveUserEmail()).toLowerCase();
+    let email = cleanId(row.email || resolveUserEmail({ allowCached: false })).toLowerCase();
     if (!email) {
-      email = await waitForUserEmail(4000);
+      email = await waitForUserEmail(4000, { allowCached: false });
       email = cleanId(email).toLowerCase();
+    }
+    if (!email) {
+      email = cleanId(resolveUserEmail()).toLowerCase();
     }
     if (!email) return;
     rememberUserEmail(email);
