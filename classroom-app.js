@@ -4209,7 +4209,16 @@ injectStyles(`
             // 👉 Special case: if this is the *first* diagnostic prompt, make it module-aware
             if (currentCategory === "diagnostic" && promptIndex === 0) {
                 const moduleName = document.getElementById(ROOT_ID + "-subHeader")?.textContent || "this module";
-                addMessage("tutor", `Before we dive in, what prior experience do you have with '${moduleName}'?`, true);
+                const firstDiagnosticVariants = [
+                    `What prior experience do you have with '${moduleName}'?`,
+                    `What’s your background when it comes to '${moduleName}'?`,
+                    `How familiar are you with '${moduleName}'?`,
+                    `What have you tried so far related to '${moduleName}'?`,
+                    `What’s your experience level with '${moduleName}'?`,
+                    `What do you already know about '${moduleName}'?`,
+                ];
+                const variant = firstDiagnosticVariants[Math.floor(Math.random() * firstDiagnosticVariants.length)];
+                addMessage("tutor", variant, true);
                 setTimeout(() => safeSaveConversationState("update"), 0);
 
                 promptIndex++; // advance so next call moves on
