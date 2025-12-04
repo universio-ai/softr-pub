@@ -892,7 +892,9 @@
     return Number.isFinite(parsed) ? parsed : 0;
   }
 
-  async function fetchCWT(force = false) {
+  async function fetchCWT(force = false, options = {}) {
+    const preferredEmail = String(options?.preferredEmail || "").trim().toLowerCase();
+    const allowCachedFallback = options?.allowCachedFallback !== false;
     const exp = expiryToMs(window.__U?.cwt_expires_at || 0);
     if (!force && window.__U?.cwt && exp && exp - Date.now() > 60000) {
       return window.__U.cwt;
@@ -902,11 +904,11 @@
     pendingCwtPromise = (async () => {
       // Prefer a fresh Softr session email and only fall back to cached values
       // after giving the client time to hydrate the logged-in user.
-      let email = resolveUserEmail({ allowCached: false });
+      let email = preferredEmail || resolveUserEmail({ allowCached: false });
       if (!email) {
         email = await waitForUserEmail(6000, { allowCached: false });
       }
-      if (!email) {
+      if (!email && allowCachedFallback) {
         email = resolveUserEmail();
       }
       if (!email) throw new Error("Cannot fetch CWT — missing user email");
@@ -936,7 +938,10 @@
         window.__U.profile = { ...(window.__U.profile || {}), ...payload.profile };
       }
       if (!window.__U.profile) window.__U.profile = {};
-      if (email && !window.__U.profile.email) window.__U.profile.email = email;
+      if (email) {
+        window.__U.cwt_email = email;
+        if (!window.__U.profile.email) window.__U.profile.email = email;
+      }
       if (cwt) window.__U.cwt = cwt;
       if (expires) window.__U.cwt_expires_at = expires;
       if (json?.courseHints && !window.__U.courseHints) {
@@ -960,6 +965,13 @@
 
   async function ensureFreshCWT() {
     const exp = expiryToMs(window.__U?.cwt_expires_at || 0);
+    const issuedEmail = (window.__U?.cwt_email || window.__U?.profile?.email || "").trim().toLowerCase();
+    const activeEmail =
+      resolveUserEmail({ allowCached: false }) ||
+      resolveUserEmail();
+    if (activeEmail && issuedEmail && activeEmail !== issuedEmail) {
+      return fetchCWT(true, { preferredEmail: activeEmail, allowCachedFallback: false });
+    }
     if (window.__U?.cwt && exp && exp - Date.now() > 120000) {
       return window.__U.cwt;
     }
