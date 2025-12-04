@@ -894,7 +894,7 @@
 
   async function fetchCWT(force = false, options = {}) {
     const preferredEmail = String(options?.preferredEmail || "").trim().toLowerCase();
-    const allowCachedFallback = options?.allowCachedFallback !== false;
+    const allowCachedFallback = options?.allowCachedFallback === true;
     const exp = expiryToMs(window.__U?.cwt_expires_at || 0);
     if (!force && window.__U?.cwt && exp && exp - Date.now() > 60000) {
       return window.__U.cwt;
@@ -966,16 +966,15 @@
   async function ensureFreshCWT() {
     const exp = expiryToMs(window.__U?.cwt_expires_at || 0);
     const issuedEmail = (window.__U?.cwt_email || window.__U?.profile?.email || "").trim().toLowerCase();
-    const activeEmail =
-      resolveUserEmail({ allowCached: false }) ||
-      resolveUserEmail();
-    if (activeEmail && issuedEmail && activeEmail !== issuedEmail) {
-      return fetchCWT(true, { preferredEmail: activeEmail, allowCachedFallback: false });
+    const liveEmail = await waitForUserEmail(4000, { allowCached: false });
+    const resolvedEmail = liveEmail || resolveUserEmail({ allowCached: false });
+    if (resolvedEmail && issuedEmail && resolvedEmail !== issuedEmail) {
+      return fetchCWT(true, { preferredEmail: resolvedEmail, allowCachedFallback: false });
     }
     if (window.__U?.cwt && exp && exp - Date.now() > 120000) {
       return window.__U.cwt;
     }
-    return fetchCWT();
+    return fetchCWT(false, { allowCachedFallback: false });
   }
 
   function apiHeaders(includeJSON = true) {
