@@ -1809,12 +1809,17 @@ window.addEventListener("universio:bootstrapped", () => {
             btnGo.className = "btn";
             btnGo.textContent = "Continue";
 
+            const btnSummary = document.createElement("button");
+            btnSummary.className = "btn secondary";
+            btnSummary.textContent = "Summary";
+
             const btnDash = document.createElement("button");
             btnDash.className = "btn secondary";
             btnDash.textContent = "Dashboard";
 
             // prevent implicit form submit
             btnGo.type = "button";
+            btnSummary.type = "button";
             btnDash.type = "button";
 
             // CLICK HANDLERS
@@ -1932,12 +1937,23 @@ window.addEventListener("universio:bootstrapped", () => {
                 window.location.replace(target || "/dashboard"); // forces a full reload so startUniversio() runs
             };
 
+            btnSummary.onclick = () => {
+                try {
+                    const url = new URL(nextUrl || "", location.origin);
+                    const graph = window.__uniGraphId || url.searchParams.get("graph") || "";
+                    const suffix = graph ? `?course=${encodeURIComponent(graph)}` : "";
+                    location.href = `/summary${suffix}`;
+                } catch {
+                    location.href = "/summary";
+                }
+            };
+
             btnDash.onclick = () => {
                 location.href = "/dashboard";
             };
 
             // append (unchanged)
-            bar.append(label, btnGo, btnDash);
+            bar.append(label, btnGo, btnSummary, btnDash);
             document.body.appendChild(bar);
         }
 
