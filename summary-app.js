@@ -1269,21 +1269,77 @@
     return nodeName || fallbackTitle;
   }
 
+  function normalizeEmail(value) {
+    return String(value || "").trim().toLowerCase();
+  }
+
+  function getExpectedEmail() {
+    const issued = normalizeEmail(window.__U?.cwt_email || window.__U?.profile?.email);
+    if (issued) return issued;
+    const live = normalizeEmail(resolveUserEmail({ allowCached: false }));
+    if (live) return live;
+    return normalizeEmail(resolveUserEmail());
+  }
+
+  function logSummaryDiagnostics(originalRows, expectedEmail) {
+    const list = Array.isArray(originalRows) ? originalRows : [];
+    const uniqueEmails = Array.from(
+      new Set(
+        list
+          .map((row) => normalizeEmail(row?.email))
+          .filter((email) => Boolean(email))
+      )
+    );
+    if (!expectedEmail) {
+      console.warn("[UNI][summary] expected email missing; skipping client filter", { uniqueEmails });
+      return;
+    }
+    const mismatched = list.filter((row) => normalizeEmail(row?.email) && normalizeEmail(row?.email) !== expectedEmail);
+    if (mismatched.length) {
+      console.warn("[UNI][summary] filtered out rows for other users", {
+        expectedEmail,
+        removedCount: mismatched.length,
+        uniqueEmails,
+        sample: mismatched.slice(0, 3)
+      });
+    } else {
+      console.info("[UNI][summary] summary rows matched expected email", { expectedEmail, uniqueEmails });
+    }
+  }
+
   function renderModules(rows) {
     if (!bodyEl) return;
+    const expectedEmail = getExpectedEmail();
     const list = Array.isArray(rows) ? rows.slice() : [];
+
+    let filtered = list;
+
+    if (expectedEmail && list.length) {
+      filtered = list.filter((row) => normalizeEmail(row?.email) === expectedEmail);
+
+      if (filtered.length === 0) {
+        console.warn("[UNI][summary] no rows matched expected email; hiding other users' summaries", {
+          expectedEmail,
+          availableEmails: Array.from(new Set(list.map((row) => normalizeEmail(row?.email)).filter(Boolean)))
+        });
+      }
+    }
+
+    logSummaryDiagnostics(list, expectedEmail);
+
     window.__uniSummaryData = {
       courseId: normalizedCourse,
       fetchedAt: new Date().toISOString(),
-      rows: list.slice()
+      expectedEmail,
+      rows: filtered.slice()
     };
 
-    if (list.length === 0) {
-      setStatus("No completed modules to show yet. Your summaries will appear here once you finish modules.");
+    if (filtered.length === 0) {
+      setStatus("No summaries found for this account yet. Your summaries will appear here once you finish modules.");
       return;
     }
 
-    const sorted = list.sort(compareSummaryRows);
+    const sorted = filtered.sort(compareSummaryRows);
 
     bodyEl.innerHTML = "";
     const frag = document.createDocumentFragment();
