@@ -1315,6 +1315,46 @@
     }
   }
 
+  function rowTimestamp(row) {
+    return (
+      parseTimestamp(row?.summary_updated_at) ||
+      parseTimestamp(row?.updated_at) ||
+      Number.NEGATIVE_INFINITY
+    );
+  }
+
+  function isPreferredSummaryRow(candidate, current) {
+    if (!current) return true;
+
+    const candidateReady = hasStoredSummary(candidate) && !summaryNeedsRefresh(candidate);
+    const currentReady = hasStoredSummary(current) && !summaryNeedsRefresh(current);
+    if (candidateReady !== currentReady) return candidateReady;
+
+    const candidateHasSummary = hasStoredSummary(candidate);
+    const currentHasSummary = hasStoredSummary(current);
+    if (candidateHasSummary !== currentHasSummary) return candidateHasSummary;
+
+    const candidateHasContent = hasConversationContent(candidate);
+    const currentHasContent = hasConversationContent(current);
+    if (candidateHasContent !== currentHasContent) return candidateHasContent;
+
+    return rowTimestamp(candidate) > rowTimestamp(current);
+  }
+
+  function dedupeSummaryRows(rows) {
+    const unique = new Map();
+    rows.forEach((row) => {
+      const rawKey = cleanId(row?.node_id);
+      if (!rawKey) return;
+      const key = rawKey.toUpperCase();
+      const existing = unique.get(key);
+      if (isPreferredSummaryRow(row, existing)) {
+        unique.set(key, row);
+      }
+    });
+    return Array.from(unique.values());
+  }
+
   function renderModules(rows) {
     if (!bodyEl) return;
     const expectedEmail = getExpectedEmail();
@@ -1347,7 +1387,8 @@
       return;
     }
 
-    const sorted = filtered.sort(compareSummaryRows);
+    const deduped = dedupeSummaryRows(filtered);
+    const sorted = deduped.sort(compareSummaryRows);
 
     bodyEl.innerHTML = "";
     const frag = document.createDocumentFragment();
