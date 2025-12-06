@@ -677,7 +677,7 @@ applyTemp(
             completedNodes > 0;
 
           const states={
-            grid1: (inProgress === 0 && !hasCompletedCert),
+            grid1: (inProgress === 0),
             grid2: inProgress >= 1 || hasCompletedCert,
             // REPLACE old rule:
             // if (completed >= 1) show($("grid3"), "flex");
