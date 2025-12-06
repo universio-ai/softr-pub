@@ -1111,6 +1111,14 @@ window.addEventListener("universio:bootstrapped", () => {
             return Math.min(num / 100, 1);
         }
 
+        // Canonical completion predicate used client- and server-side:
+        //  ✅ completed flag wins, otherwise require a full 1.0 fraction (not rounded percents).
+        function isCanonicalComplete(progress) {
+            const completedFlag = progress?.completed === true || String(progress?.status || "").toLowerCase() === "completed";
+            const fraction = coerceProgressFraction(progress?.score ?? progress?.node_percent ?? progress);
+            return completedFlag || fraction >= 1;
+        }
+
         function coerceProgressPercent(value) {
             return Math.round(coerceProgressFraction(value) * 100);
         }
@@ -4345,11 +4353,13 @@ injectStyles(`
                         updateProgressUI(pctNow);
                     }
 
-                    // ✅ completion check using persisted score (no redeclare)
+                    // ✅ completion check using canonical server progress (avoid rounding-only 100s)
                     if (!persisted) persisted = await readPersistedProgress();
-                    const pct = coerceProgressPercent(persisted?.score ?? 0);
+                    const persistedFraction = coerceProgressFraction(persisted?.score ?? persisted?.node_percent ?? 0);
+                    const persistedComplete = isCanonicalComplete(persisted);
+                    const pct = Math.round(persistedFraction * 100);
 
-                    if (pct >= 100 && !window.__completionShown && !sessionStorage.getItem(COMPLETE_KEY())) {
+                    if (persistedComplete && pct >= 100 && !window.__completionShown && !sessionStorage.getItem(COMPLETE_KEY())) {
                         window.__completionShown = true;
                         sessionStorage.setItem(COMPLETE_KEY(), "1");
 
