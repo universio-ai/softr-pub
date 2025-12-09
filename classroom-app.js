@@ -1642,7 +1642,7 @@ window.addEventListener("universio:bootstrapped", () => {
         }
 
         // === Uni helpers ===
-        const UNI_AVATAR_SRC = "https://assets.softr-files.com/applications/6200748e-9f61-4ecf-85e2-62d4993f521e/assets/3869c85d-250a-4c87-8e25-8ca98c84ae50.png";
+        const UNI_AVATAR_SRC = "https://assets.softr-files.com/applications/253dc6e8-0de5-4c72-a842-2914f13c3d0f/assets/3869c85d-250a-4c87-8e25-8ca98c84ae50.png";
 
         let __uniCheerTurns = 0; // counts user turns between cheers
         let __uniNextCheerAt = 3 + Math.floor(Math.random() * 4); // 3..6
