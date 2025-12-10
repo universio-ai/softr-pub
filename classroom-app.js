@@ -1,5 +1,5 @@
 (function () {
-  const UPDATED_AT = "2025-11-17T02:15:34Z";
+  const UPDATED_AT = "2025-11-17T03:04:40Z";
   console.log(`[UNI] classroom-app updated ${UPDATED_AT} (runtime ${new Date().toISOString()})`);
 
   const CLASSROOM_WRAPPER_ID = "universio-classroom";
@@ -1286,6 +1286,7 @@ window.addEventListener("universio:bootstrapped", () => {
         let timeLockNotified = false;
         let timeMismatchReverify = false;
         let timeMismatchOverrideUsed = false;
+        let nearExhaustionRecheck = null;
 
         function applyMinutesLeft(remaining) {
             if (typeof remaining !== "number" || Number.isNaN(remaining)) return;
@@ -1375,6 +1376,30 @@ window.addEventListener("universio:bootstrapped", () => {
             } catch {}
             applyMinutesLeft(effective);
             window.dispatchEvent(new CustomEvent("uni:minutes-left", { detail: { remaining: effective, authoritative } }));
+
+            // If we're hovering at 1 minute with an authoritative reading, re-check soon
+            // and fall back to a forced zero so the lock UI can engage reliably.
+            if (authoritative && effective <= 1) {
+                if (!nearExhaustionRecheck) {
+                    nearExhaustionRecheck = setTimeout(async () => {
+                        nearExhaustionRecheck = null;
+                        try {
+                            await fetchMinutesLeftNow();
+                        } catch {}
+
+                        if (
+                            hasAuthoritativeRemaining &&
+                            typeof latestRemainingMin === "number" &&
+                            latestRemainingMin <= 1
+                        ) {
+                            broadcastMinutesLeft(0, { authoritative: true });
+                        }
+                    }, 70_000);
+                }
+            } else if (nearExhaustionRecheck) {
+                clearTimeout(nearExhaustionRecheck);
+                nearExhaustionRecheck = null;
+            }
         }
 
         // If Softr exposed a time_remaining seed, show it immediately to avoid stale zero locks
