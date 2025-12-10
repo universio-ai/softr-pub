@@ -2628,7 +2628,7 @@ injectStyles(`
       box-shadow: 0 12px 32px rgba(15, 18, 34, 0.12);
       backdrop-filter: blur(18px);
       -webkit-backdrop-filter: blur(18px);
-      border-radius: 10px !important;
+      border-radius: 999px !important;
       overflow: hidden;
       transition: border-color 0.2s ease, box-shadow 0.2s ease;
     }
@@ -2636,7 +2636,7 @@ injectStyles(`
     #${ROOT_ID} .uni-input-row .uni-input {
       flex: 1 1 auto;
       min-width: 0;
-      border-radius: 18px !important;
+      border-radius: 999px !important;
       border: 0.7px solid #000000 !important;
       background: rgba(255,255,255,0.65) !important;
       backdrop-filter: none !important;
