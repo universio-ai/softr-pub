@@ -1268,6 +1268,7 @@ window.addEventListener("universio:bootstrapped", () => {
             "Great work today. You have used all of your time for your current plan. I look forward to seeing you again tomorrow!";
 
         let latestRemainingMin = null;
+        let hasAuthoritativeRemaining = false;
         let minutesWatcher = null;
         let timeLocked = false;
         let timeLockNotified = false;
@@ -1314,13 +1315,16 @@ window.addEventListener("universio:bootstrapped", () => {
             }
         }
 
-        function broadcastMinutesLeft(remaining) {
+        function broadcastMinutesLeft(remaining, { authoritative = false } = {}) {
             if (typeof remaining !== "number" || Number.isNaN(remaining)) return;
+            if (authoritative) {
+                hasAuthoritativeRemaining = true;
+            }
             try {
                 localStorage.setItem(LEFT_KEY, String(remaining));
             } catch {}
             applyMinutesLeft(remaining);
-            window.dispatchEvent(new CustomEvent("uni:minutes-left", { detail: { remaining } }));
+            window.dispatchEvent(new CustomEvent("uni:minutes-left", { detail: { remaining, authoritative } }));
         }
 
         // If we have a cached remaining, show it immediately (and re-apply once timer mounts)
@@ -1350,7 +1354,7 @@ window.addEventListener("universio:bootstrapped", () => {
                 : Math.floor(remainingMs / 60000);
 
             if (Number.isFinite(remainingMin)) {
-                broadcastMinutesLeft(remainingMin);
+                broadcastMinutesLeft(remainingMin, { authoritative: true });
             }
         }
 
@@ -1400,7 +1404,7 @@ window.addEventListener("universio:bootstrapped", () => {
                 const remainingMin = j?.updated?.remaining_today_minutes ?? j?.updated?.remaining_minutes ?? j?.updated?.remaining_min ?? (j?.updated?.remaining_ms ? Math.floor(j.updated.remaining_ms / 60000) : null);
 
                 if (typeof remainingMin === "number") {
-                    broadcastMinutesLeft(remainingMin);
+                    broadcastMinutesLeft(remainingMin, { authoritative: true });
                 }
             } catch (err) {
                 console.warn("[time-ingest failed]", err);
@@ -5155,7 +5159,7 @@ injectStyles(`
         function applyClassroomLock(remaining = latestRemainingMin) {
             if (!Number.isFinite(remaining)) return;
 
-            const exhausted = remaining <= 0;
+            const exhausted = hasAuthoritativeRemaining && remaining <= 0;
             timeLocked = exhausted;
 
             [inputEl, sendBtn, micBtn].forEach((ctl) => {
@@ -5179,6 +5183,9 @@ injectStyles(`
         window.addEventListener("uni:minutes-left", (e) => {
             if (typeof e.detail?.remaining === "number" && !Number.isNaN(e.detail.remaining)) {
                 latestRemainingMin = e.detail.remaining;
+            }
+            if (e.detail?.authoritative) {
+                hasAuthoritativeRemaining = true;
             }
             applyClassroomLock();
         });
