@@ -1264,8 +1264,13 @@ window.addEventListener("universio:bootstrapped", () => {
             return pill;
         }
 
+        const TIME_LOCK_MESSAGE =
+            "Great work today. You have used all of your time for your current plan. I look forward to seeing you again tomorrow!";
+
         let latestRemainingMin = null;
         let minutesWatcher = null;
+        let timeLocked = false;
+        let timeLockNotified = false;
 
         function applyMinutesLeft(remaining) {
             if (typeof remaining !== "number" || Number.isNaN(remaining)) return;
@@ -5147,9 +5152,49 @@ injectStyles(`
         window.uniProgress = markProgress;
         window.uniComplete = markComplete;
 
+        function applyClassroomLock(remaining = latestRemainingMin) {
+            if (!Number.isFinite(remaining)) return;
+
+            const exhausted = remaining <= 0;
+            timeLocked = exhausted;
+
+            [inputEl, sendBtn, micBtn].forEach((ctl) => {
+                if (ctl) ctl.disabled = exhausted;
+            });
+
+            if (inputEl) {
+                inputEl.placeholder = exhausted ? "Come back tomorrow to continue." : "";
+            }
+
+            if (exhausted) {
+                if (!timeLockNotified) {
+                    addMessage("tutor", TIME_LOCK_MESSAGE, false);
+                    timeLockNotified = true;
+                }
+            } else {
+                timeLockNotified = false;
+            }
+        }
+
+        window.addEventListener("uni:minutes-left", (e) => {
+            if (typeof e.detail?.remaining === "number" && !Number.isNaN(e.detail.remaining)) {
+                latestRemainingMin = e.detail.remaining;
+            }
+            applyClassroomLock();
+        });
+
+        if (typeof latestRemainingMin === "number" && !Number.isNaN(latestRemainingMin)) {
+            applyClassroomLock(latestRemainingMin);
+        }
+
         function handleSend() {
             const text = (inputEl.value || "").trim();
             if (!text) return;
+
+            if (timeLocked) {
+                applyClassroomLock(latestRemainingMin);
+                return;
+            }
 
             // GA4: client submit event
             try {
