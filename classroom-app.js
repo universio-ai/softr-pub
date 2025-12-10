@@ -5208,6 +5208,7 @@ injectStyles(`
         window.uniProgress = markProgress;
         window.uniComplete = markComplete;
 
+        let timeLockBubble = null;
         function applyClassroomLock(remaining = latestRemainingMin) {
             if (!Number.isFinite(remaining)) return;
 
@@ -5224,11 +5225,16 @@ injectStyles(`
 
             if (exhausted) {
                 if (!timeLockNotified) {
-                    addMessage("tutor", TIME_LOCK_MESSAGE, false);
+                    timeLockBubble = addMessage("tutor", TIME_LOCK_MESSAGE, false);
                     timeLockNotified = true;
                 }
             } else {
                 timeLockNotified = false;
+                // Remove any stale exhaustion notice so a restored plan doesn't show old locks
+                try {
+                    if (timeLockBubble?.remove) timeLockBubble.remove();
+                } catch {}
+                timeLockBubble = null;
             }
         }
 
