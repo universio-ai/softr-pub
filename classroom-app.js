@@ -5774,8 +5774,8 @@ injectStyles(`
                     }
                     hideTypingBubble(bootTyping);
 
-                    // 4) First-greet + prompt if no history
-                    if (!Array.isArray(conversation) || conversation.length === 0) {
+                    // 4) First-greet + prompt if no history (skip when time-locked)
+                    if (!timeLocked && (!Array.isArray(conversation) || conversation.length === 0)) {
                         const isCapstoneNode = /^CAP(?:_|$)/i.test(String(window.__uniNodeId || ""));
                         const courseNameVar = window.__uniCourseName || "this course";
                         if (isCapstoneNode) {
@@ -5793,31 +5793,31 @@ Ready to begin?`,
                             addMessage("tutor", greetings[Math.floor(Math.random() * greetings.length)], true);
                             setTimeout(nextPrompt, 400);
                         }
+
+                        // 🧩 Persist initial tutor bubbles once session_id exists
+                        setTimeout(async () => {
+                            let tries = 0;
+                            while (!window.__uniSessionId && tries++ < 10) await new Promise((r) => setTimeout(r, 300));
+                            console.debug("[init-save] new record with greeting bubbles");
+                            try {
+                                await safeSaveConversationState("fresh");
+                            } catch (e) {
+                                console.warn("[init-save failed]", e);
+                            }
+                        }, 1500);
+
+                        // 🧩 Second flush to capture all new bubbles once session_id confirmed
+                        setTimeout(async () => {
+                            let tries = 0;
+                            while (!window.__uniSessionId && tries++ < 10) await new Promise((r) => setTimeout(r, 300));
+                            console.debug("[reset-save] flushing reset greeting to Softr…", { session: window.__uniSessionId });
+                            try {
+                                await saveConversationState();
+                            } catch (e) {
+                                console.warn("[reset-save failed]", e);
+                            }
+                        }, 1500);
                     }
-
-                    // 🧩 Persist initial tutor bubbles once session_id exists
-                    setTimeout(async () => {
-                        let tries = 0;
-                        while (!window.__uniSessionId && tries++ < 10) await new Promise((r) => setTimeout(r, 300));
-                        console.debug("[init-save] new record with greeting bubbles");
-                        try {
-                            await safeSaveConversationState("fresh");
-                        } catch (e) {
-                            console.warn("[init-save failed]", e);
-                        }
-                    }, 1500);
-
-                    // 🧩 Second flush to capture all new bubbles once session_id confirmed
-                    setTimeout(async () => {
-                        let tries = 0;
-                        while (!window.__uniSessionId && tries++ < 10) await new Promise((r) => setTimeout(r, 300));
-                        console.debug("[reset-save] flushing reset greeting to Softr…", { session: window.__uniSessionId });
-                        try {
-                            await saveConversationState();
-                        } catch (e) {
-                            console.warn("[reset-save failed]", e);
-                        }
-                    }, 1500);
 
                     // 5) Load plan (clever-worker requires CWT)
                     loadPlan();
