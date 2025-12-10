@@ -4459,7 +4459,12 @@ injectStyles(`
                     if (!persisted) persisted = await readPersistedProgress();
                     const persistedFraction = coerceProgressFraction(persisted?.score ?? persisted?.node_percent ?? 0);
                     const persistedComplete = isCanonicalComplete(persisted);
-                    const pct = Math.round(persistedFraction * 100);
+                    let pct = Math.round(persistedFraction * 100);
+
+                    // If the server marks the node completed but omits a percent, force 100% so the banner fires
+                    if (persistedComplete && pct < 100) {
+                        pct = 100;
+                    }
 
                     if (persistedComplete && pct >= 100 && !window.__completionShown && !sessionStorage.getItem(COMPLETE_KEY())) {
                         window.__completionShown = true;
