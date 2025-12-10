@@ -1274,6 +1274,12 @@ window.addEventListener("universio:bootstrapped", () => {
         })();
 
         let latestRemainingMin = null;
+        const planNameSeed =
+            window.logged_in_user?.plan_name ||
+            window.logged_in_user?.planName ||
+            window.logged_in_user?.plan ||
+            window.__U?.profile?.plan_name ||
+            null;
         let hasAuthoritativeRemaining = false;
         let minutesWatcher = null;
         let timeLocked = false;
@@ -1282,7 +1288,6 @@ window.addEventListener("universio:bootstrapped", () => {
 
         function applyMinutesLeft(remaining) {
             if (typeof remaining !== "number" || Number.isNaN(remaining)) return;
-            latestRemainingMin = remaining;
 
             const applyNow = () => {
                 const el = document.getElementById("uniTimerFixed");
@@ -1326,6 +1331,11 @@ window.addEventListener("universio:bootstrapped", () => {
             if (typeof remaining !== "number" || Number.isNaN(remaining)) return;
             let effective = remaining;
 
+            // Do not let cached/non-authoritative values override a known authoritative reading
+            if (!authoritative && hasAuthoritativeRemaining) {
+                return;
+            }
+
             // If Softr has a positive seed but an authoritative 0 arrives, fall back and re-verify
             if (authoritative && remaining <= 0 && Number.isFinite(PLAN_MINUTES_SEED) && PLAN_MINUTES_SEED > 0) {
                 console.warn("[minutes-left] authoritative 0 contradicted by Softr seed", {
@@ -1350,6 +1360,8 @@ window.addEventListener("universio:bootstrapped", () => {
             if (authoritative) {
                 hasAuthoritativeRemaining = true;
             }
+
+            latestRemainingMin = effective;
             try {
                 localStorage.setItem(LEFT_KEY, String(effective));
             } catch {}
@@ -1365,7 +1377,7 @@ window.addEventListener("universio:bootstrapped", () => {
         // If we have a cached remaining, show it immediately (and re-apply once timer mounts)
         try {
             const cachedLeft = Number(localStorage.getItem(LEFT_KEY));
-            if (!Number.isNaN(cachedLeft)) {
+            if (!Number.isNaN(cachedLeft) && !hasAuthoritativeRemaining) {
                 broadcastMinutesLeft(cachedLeft);
             }
         } catch {}
@@ -1387,6 +1399,11 @@ window.addEventListener("universio:bootstrapped", () => {
             const remainingMin = Number.isFinite(explicitRemainingMin)
                 ? explicitRemainingMin
                 : Math.floor(remainingMs / 60000);
+
+            const resolvedPlan = j?.plan_name || planNameSeed;
+            if (resolvedPlan) {
+                window.__uniPlanName = resolvedPlan;
+            }
 
             if (Number.isFinite(remainingMin)) {
                 broadcastMinutesLeft(remainingMin, { authoritative: true });
