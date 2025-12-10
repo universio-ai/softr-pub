@@ -1267,11 +1267,18 @@ window.addEventListener("universio:bootstrapped", () => {
         const TIME_LOCK_MESSAGE =
             "Great work today. You have used all of your time for your current plan. I look forward to seeing you again tomorrow!";
 
+        const PLAN_MINUTES_SEED = (() => {
+            const raw = window.logged_in_user?.time_remaining;
+            const num = Number(raw);
+            return Number.isFinite(num) ? num : null;
+        })();
+
         let latestRemainingMin = null;
         let hasAuthoritativeRemaining = false;
         let minutesWatcher = null;
         let timeLocked = false;
         let timeLockNotified = false;
+        let timeMismatchReverify = false;
 
         function applyMinutesLeft(remaining) {
             if (typeof remaining !== "number" || Number.isNaN(remaining)) return;
@@ -1317,14 +1324,42 @@ window.addEventListener("universio:bootstrapped", () => {
 
         function broadcastMinutesLeft(remaining, { authoritative = false } = {}) {
             if (typeof remaining !== "number" || Number.isNaN(remaining)) return;
+            let effective = remaining;
+
+            // If Softr has a positive seed but an authoritative 0 arrives, fall back and re-verify
+            if (authoritative && remaining <= 0 && Number.isFinite(PLAN_MINUTES_SEED) && PLAN_MINUTES_SEED > 0) {
+                console.warn("[minutes-left] authoritative 0 contradicted by Softr seed", {
+                    remaining,
+                    seed: PLAN_MINUTES_SEED,
+                });
+                effective = PLAN_MINUTES_SEED;
+                authoritative = false; // don't lock until we re-verify
+
+                if (!timeMismatchReverify) {
+                    timeMismatchReverify = true;
+                    setTimeout(async () => {
+                        try {
+                            await fetchMinutesLeftNow();
+                        } finally {
+                            timeMismatchReverify = false;
+                        }
+                    }, 500);
+                }
+            }
+
             if (authoritative) {
                 hasAuthoritativeRemaining = true;
             }
             try {
-                localStorage.setItem(LEFT_KEY, String(remaining));
+                localStorage.setItem(LEFT_KEY, String(effective));
             } catch {}
-            applyMinutesLeft(remaining);
-            window.dispatchEvent(new CustomEvent("uni:minutes-left", { detail: { remaining, authoritative } }));
+            applyMinutesLeft(effective);
+            window.dispatchEvent(new CustomEvent("uni:minutes-left", { detail: { remaining: effective, authoritative } }));
+        }
+
+        // If Softr exposed a time_remaining seed, show it immediately to avoid stale zero locks
+        if (Number.isFinite(PLAN_MINUTES_SEED)) {
+            broadcastMinutesLeft(PLAN_MINUTES_SEED, { authoritative: true });
         }
 
         // If we have a cached remaining, show it immediately (and re-apply once timer mounts)
@@ -5181,12 +5216,29 @@ injectStyles(`
         }
 
         window.addEventListener("uni:minutes-left", (e) => {
-            if (typeof e.detail?.remaining === "number" && !Number.isNaN(e.detail.remaining)) {
-                latestRemainingMin = e.detail.remaining;
-            }
-            if (e.detail?.authoritative) {
+            const { remaining, authoritative } = e.detail || {};
+            const numericRemaining = typeof remaining === "number" && !Number.isNaN(remaining);
+
+            if (authoritative) {
                 hasAuthoritativeRemaining = true;
             }
+
+            // Do not let non-authoritative data override a known-good authoritative value to zero
+            if (
+                numericRemaining &&
+                !authoritative &&
+                hasAuthoritativeRemaining &&
+                typeof latestRemainingMin === "number" &&
+                latestRemainingMin > 0 &&
+                remaining <= 0
+            ) {
+                return;
+            }
+
+            if (numericRemaining) {
+                latestRemainingMin = remaining;
+            }
+
             applyClassroomLock();
         });
 
