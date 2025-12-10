@@ -2702,7 +2702,9 @@ injectStyles(`
             ""
         );
 
-        const headerRight = el("div", { class: "uni-header-right" }, [progressPill, el("div", { class: "reset-wrapper" }, [resetBtn, resetHint])]);
+        const resetWrapper = el("div", { class: "reset-wrapper" }, [resetBtn, resetHint]);
+
+        const headerRight = el("div", { class: "uni-header-right" }, [progressPill, resetWrapper]);
 
         const chatHeader = el("div", { class: "uni-card-header" }, [
             el("div", {}, [
@@ -3563,6 +3565,8 @@ injectStyles(`
         });
 
         const inputRow = el("div", { class: "uni-input-row" }, [micBtn, inputEl, sendBtn]);
+        const inputRowDefaultDisplay = inputRow.style.display || "";
+        const resetWrapperDefaultDisplay = resetWrapper.style.display || "";
         chatBody.append(messagesEl);
         chatCard.append(shellLoader, chatHeader, chatBody);
 
@@ -4201,6 +4205,10 @@ injectStyles(`
         }
 
         function loadConversationState() {
+            if (suppressConversationLoad || timeLocked) {
+                console.info("[UNI] conversation load skipped due to time lock");
+                return Promise.resolve();
+            }
             return apiFetch(convoBase + "/conversation-state/load", {
                 method: "POST",
                 body: JSON.stringify({ graphId, nodeId }),
@@ -5209,11 +5217,50 @@ injectStyles(`
         window.uniComplete = markComplete;
 
         let timeLockBubble = null;
+        let suppressConversationLoad = false;
+        let inputRowHiddenForLock = false;
+        let resetHiddenForLock = false;
+
+        function clearConversationUI() {
+            conversation = [];
+            if (messagesEl) {
+                messagesEl.innerHTML = "";
+            }
+            timeLockBubble = null;
+        }
+
+        function hideControlsForLock() {
+            if (inputRow && inputRow.style.display !== "none") {
+                inputRowHiddenForLock = true;
+                inputRow.style.display = "none";
+            }
+
+            if (resetWrapper && resetWrapper.style.display !== "none") {
+                resetHiddenForLock = true;
+                resetWrapper.style.display = "none";
+            }
+        }
+
+        function restoreControlsAfterLock() {
+            if (inputRowHiddenForLock && inputRow) {
+                inputRow.style.display = inputRowDefaultDisplay;
+            }
+            inputRowHiddenForLock = false;
+
+            if (resetHiddenForLock && resetWrapper) {
+                resetWrapper.style.display = resetWrapperDefaultDisplay;
+            }
+            resetHiddenForLock = false;
+        }
+
         function applyClassroomLock(remaining = latestRemainingMin) {
             if (!Number.isFinite(remaining)) return;
 
             const exhausted = hasAuthoritativeRemaining && remaining <= 0;
+            const wasLocked = timeLocked;
             timeLocked = exhausted;
+
+            suppressConversationLoad = exhausted;
 
             [inputEl, sendBtn, micBtn].forEach((ctl) => {
                 if (ctl) ctl.disabled = exhausted;
@@ -5224,11 +5271,16 @@ injectStyles(`
             }
 
             if (exhausted) {
-                if (!timeLockNotified) {
+                if (!wasLocked) {
+                    clearConversationUI();
+                }
+                hideControlsForLock();
+                if (!timeLockNotified || !timeLockBubble?.isConnected) {
                     timeLockBubble = addMessage("tutor", TIME_LOCK_MESSAGE, false);
                     timeLockNotified = true;
                 }
             } else {
+                restoreControlsAfterLock();
                 timeLockNotified = false;
                 // Remove any stale exhaustion notice so a restored plan doesn't show old locks
                 try {
