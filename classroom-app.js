@@ -1285,6 +1285,7 @@ window.addEventListener("universio:bootstrapped", () => {
         let timeLocked = false;
         let timeLockNotified = false;
         let timeMismatchReverify = false;
+        let timeMismatchOverrideUsed = false;
 
         function applyMinutesLeft(remaining) {
             if (typeof remaining !== "number" || Number.isNaN(remaining)) return;
@@ -1336,25 +1337,32 @@ window.addEventListener("universio:bootstrapped", () => {
                 return;
             }
 
-            // If Softr has a positive seed but an authoritative 0 arrives, fall back and re-verify
+            // If Softr has a positive seed but an authoritative 0 arrives, fall back and re-verify once
             if (authoritative && remaining <= 0 && Number.isFinite(PLAN_MINUTES_SEED) && PLAN_MINUTES_SEED > 0) {
-                console.warn("[minutes-left] authoritative 0 contradicted by Softr seed", {
-                    remaining,
-                    seed: PLAN_MINUTES_SEED,
-                });
-                effective = PLAN_MINUTES_SEED;
-                authoritative = false; // don't lock until we re-verify
+                if (!timeMismatchOverrideUsed) {
+                    console.warn("[minutes-left] authoritative 0 contradicted by Softr seed", {
+                        remaining,
+                        seed: PLAN_MINUTES_SEED,
+                    });
+                    effective = PLAN_MINUTES_SEED;
+                    authoritative = false; // don't lock until we re-verify
+                    timeMismatchOverrideUsed = true;
 
-                if (!timeMismatchReverify) {
-                    timeMismatchReverify = true;
-                    setTimeout(async () => {
-                        try {
-                            await fetchMinutesLeftNow();
-                        } finally {
-                            timeMismatchReverify = false;
-                        }
-                    }, 500);
+                    if (!timeMismatchReverify) {
+                        timeMismatchReverify = true;
+                        setTimeout(async () => {
+                            try {
+                                await fetchMinutesLeftNow();
+                            } finally {
+                                timeMismatchReverify = false;
+                            }
+                        }, 500);
+                    }
                 }
+            }
+
+            if (authoritative && remaining > 0) {
+                timeMismatchOverrideUsed = false;
             }
 
             if (authoritative) {
