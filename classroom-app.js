@@ -1555,7 +1555,7 @@ window.addEventListener("universio:bootstrapped", () => {
                 const graphId = window.__uniGraphId || document.getElementById("uni-data")?.dataset?.graph || "";
                 const nodeId = window.__uniNodeId || document.getElementById("uni-data")?.dataset?.node || "";
                 if (!graphId || !nodeId) return 0;
-                const email = resolveUserEmail();
+                const email = await waitForUserEmail();
                 const idKey = buildProgressIdKey(email, graphId, nodeId);
                 if (!idKey) return 0;
 
