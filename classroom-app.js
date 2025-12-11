@@ -1329,6 +1329,27 @@ window.addEventListener("universio:bootstrapped", () => {
             }
         }
 
+        function formatMsAsClock(ms) {
+            const safe = Math.max(0, Math.floor(ms));
+            const minutes = Math.floor(safe / 60000);
+            const seconds = Math.floor((safe % 60000) / 1000);
+            return `${minutes}:${String(seconds).padStart(2, "0")}`;
+        }
+
+        function renderCountUp(totalMs) {
+            const el = document.getElementById("uniTimerFixed");
+            const leftEl = document.getElementById("uniTimerLeft");
+            const timeEl = document.getElementById("uniTimerTime");
+            if (!el || !timeEl) return;
+
+            const text = formatMsAsClock(totalMs);
+            timeEl.textContent = text;
+
+            // Keep ARIA labels in sync with the visible text + remaining minutes
+            const leftText = leftEl?.textContent || "";
+            el.setAttribute("aria-label", `${text}${leftText ? ", " + leftText : ""}`);
+        }
+
         function broadcastMinutesLeft(remaining, { authoritative = false } = {}) {
             if (typeof remaining !== "number" || Number.isNaN(remaining)) return;
             let effective = remaining;
@@ -1502,6 +1523,25 @@ window.addEventListener("universio:bootstrapped", () => {
 
         // expose for console testing
         window.sendActiveDelta = sendActiveDelta;
+
+        async function fetchUsedTimeBaseline() {
+            try {
+                const graphId = window.__uniGraphId || document.getElementById("uni-data")?.dataset?.graph || "";
+                const nodeId = window.__uniNodeId || document.getElementById("uni-data")?.dataset?.node || "";
+                if (!graphId || !nodeId) return 0;
+
+                const r = await apiFetch("https://oomcxsfikujptkfsqgzi.supabase.co/functions/v1/ai-tutor-api/time/used", {
+                  method: "POST",
+                  body: JSON.stringify({ graphId, nodeId }),
+                });
+                const j = await r.json().catch(() => ({}));
+                const used = Number(j?.time_used_ms ?? j?.time_ingest_ms ?? j?.time_ingest ?? NaN);
+                if (Number.isFinite(used) && used > 0) return used;
+            } catch (err) {
+                console.warn("[time/used fetch failed]", err);
+            }
+            return 0;
+        }
 
         // Update the header timer's "minutes left" subline whenever time-ingest replies
         window.addEventListener("uni:minutes-left", (e) => {
@@ -5724,20 +5764,44 @@ injectStyles(`
                         await fetchMinutesLeftNow();
                     } catch {}
 
-                    // Returns the local, on-screen active milliseconds from the header timer
+                    let serverUsedBaselineMs = 0;
+                    try {
+                        const fetchedUsed = await fetchUsedTimeBaseline();
+                        if (fetchedUsed > 0) {
+                            serverUsedBaselineMs = fetchedUsed;
+                            try {
+                                const mergedBaseline = Math.max(
+                                    fetchedUsed,
+                                    Number(localStorage.getItem(BILLED_KEY)) || 0
+                                );
+                                localStorage.setItem(BILLED_KEY, String(mergedBaseline));
+                            } catch {}
+                            renderCountUp(serverUsedBaselineMs);
+                        }
+                    } catch (err) {
+                        console.warn("[time/used bootstrap skipped]", err);
+                    }
+
+                    // Returns the cumulative active milliseconds (server baseline + local session)
                     const getActiveTotalMs = () => {
                         try {
-                            return window.uniTimer?.value()?.totalMs ?? 0;
+                            const live = window.uniTimer?.value()?.totalMs ?? 0;
+                            return serverUsedBaselineMs + live;
                         } catch {
-                            return 0;
+                            return serverUsedBaselineMs;
                         }
                     };
+
+                    const syncCountUp = () => renderCountUp(getActiveTotalMs());
+                    syncCountUp();
+                    if (window.__uniCountUpTicker) clearInterval(window.__uniCountUpTicker);
+                    window.__uniCountUpTicker = setInterval(syncCountUp, 1000);
 
                     // Seed last-sent strictly from billed baseline to avoid re-billing on reload
                     let __lastSentMs = 0;
                     try {
                         const billed = Number(localStorage.getItem(BILLED_KEY)) || 0;
-                        __lastSentMs = billed;
+                        __lastSentMs = Math.max(billed, serverUsedBaselineMs);
                     } catch {}
 
                     // [CLASSROOM-ADD-2] === Active-time sync loop (10s) ===
