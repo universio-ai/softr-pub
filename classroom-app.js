@@ -4491,7 +4491,8 @@ injectStyles(`
             let cleverWorker = {};
             try {
                 await ensureFreshCWT();  // 👈 ensure token ready before fetch
-                const cwRes = await apiFetch(`${convoBase}/lesson/module?nodeId=${encodeURIComponent(nodeId)}`);
+                const cwRes = await apiFetch(`${convoBase}/lesson/module?nodeId=${encodeURIComponent(nodeId)}&courseId=${encodeURIComponent(graphId)}`);
+
                 if (cwRes.ok) {
                     cleverWorker = await cwRes.json();
                 }
