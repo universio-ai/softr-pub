@@ -4245,15 +4245,20 @@ injectStyles(`
                 const email = resolveUserEmail();
                 if (!email || !window.__uniNodeId) return false;
 
-                const r = await apiFetch("https://oomcxsfikujptkfsqgzi.supabase.co/functions/v1/softr-conversation", {
-                    method: "POST",
-                    body: JSON.stringify({
-                        mode: "delete",
-                        email,
-                        nodeId: window.__uniNodeId,
-                        graphId: window.__uniGraphId,
-                    }),
-                });
+              const r = await apiFetch(
+                "https://oomcxsfikujptkfsqgzi.supabase.co/functions/v1/softr-conversation",
+                {
+                  method: "POST",
+                  body: JSON.stringify({
+                    mode: "delete",
+                    email,
+                    nodeId: window.__uniNodeId,
+                    graphId: window.__uniGraphId,
+                    __uniCourseName: window.__uniCourseName || null,   // ✅ always pass names
+                    __uniModuleName: window.__uniModuleName || null    // ✅ even if null-safe
+                  })
+                }
+              );
                 const j = await r.json().catch(() => ({}));
                 console.log("[resetConversation] Softr delete →", r.status, j);
                 return r.ok;
