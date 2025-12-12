@@ -1524,44 +1524,15 @@ window.addEventListener("universio:bootstrapped", () => {
         // expose for console testing
         window.sendActiveDelta = sendActiveDelta;
 
-        function normalizeCourseIdForKey(id = "") {
-            const raw = String(id || "").trim();
-            if (!raw) return "";
-            const match = raw.match(/C\d{3}/i);
-            return match ? match[0].toUpperCase() : raw.toUpperCase();
-        }
-
-        function normalizeNodeIdForKey(id = "") {
-            const raw = String(id || "").trim();
-            if (!raw) return "";
-            const match = raw.match(/[A-Z]{2,3}\d{2,}/i);
-            return match ? match[0].toUpperCase() : raw.toUpperCase();
-        }
-
-        function normalizeIdKeyPart(val = "") {
-            return String(val || "").trim().toLowerCase().replace(/[^a-z0-9_-]+/gi, "_");
-        }
-
-        function buildProgressIdKey(email = "", courseId = "", nodeId = "") {
-            const emailKey = normalizeIdKeyPart(email);
-            const courseKey = normalizeIdKeyPart(normalizeCourseIdForKey(courseId));
-            const nodeKey = normalizeIdKeyPart(normalizeNodeIdForKey(nodeId));
-            if (!emailKey || !courseKey || !nodeKey) return "";
-            return `${emailKey}_${courseKey}_${nodeKey}`;
-        }
-
         async function fetchUsedTimeBaseline() {
             try {
                 const graphId = window.__uniGraphId || document.getElementById("uni-data")?.dataset?.graph || "";
                 const nodeId = window.__uniNodeId || document.getElementById("uni-data")?.dataset?.node || "";
                 if (!graphId || !nodeId) return 0;
-                const email = await waitForUserEmail();
-                const idKey = buildProgressIdKey(email, graphId, nodeId);
-                if (!idKey) return 0;
 
                 const r = await apiFetch("https://oomcxsfikujptkfsqgzi.supabase.co/functions/v1/ai-tutor-api/time/used", {
                   method: "POST",
-                  body: JSON.stringify({ graphId, nodeId, email, idKey }),
+                  body: JSON.stringify({ graphId, nodeId }),
                 });
                 const j = await r.json().catch(() => ({}));
                 const used = Number(j?.time_used_ms ?? j?.time_ingest_ms ?? j?.time_ingest ?? NaN);
@@ -4245,20 +4216,15 @@ injectStyles(`
                 const email = resolveUserEmail();
                 if (!email || !window.__uniNodeId) return false;
 
-              const r = await apiFetch(
-                "https://oomcxsfikujptkfsqgzi.supabase.co/functions/v1/softr-conversation",
-                {
-                  method: "POST",
-                  body: JSON.stringify({
-                    mode: "delete",
-                    email,
-                    nodeId: window.__uniNodeId,
-                    graphId: window.__uniGraphId,
-                    __uniCourseName: window.__uniCourseName || null,   // ✅ always pass names
-                    __uniModuleName: window.__uniModuleName || null    // ✅ even if null-safe
-                  })
-                }
-              );
+                const r = await apiFetch("https://oomcxsfikujptkfsqgzi.supabase.co/functions/v1/softr-conversation", {
+                    method: "POST",
+                    body: JSON.stringify({
+                        mode: "delete",
+                        email,
+                        nodeId: window.__uniNodeId,
+                        graphId: window.__uniGraphId,
+                    }),
+                });
                 const j = await r.json().catch(() => ({}));
                 console.log("[resetConversation] Softr delete →", r.status, j);
                 return r.ok;
@@ -4496,8 +4462,7 @@ injectStyles(`
             let cleverWorker = {};
             try {
                 await ensureFreshCWT();  // 👈 ensure token ready before fetch
-                const cwRes = await apiFetch(`${convoBase}/lesson/module?nodeId=${encodeURIComponent(nodeId)}&courseId=${encodeURIComponent(graphId)}`);
-
+                const cwRes = await apiFetch(`${convoBase}/lesson/module?nodeId=${encodeURIComponent(nodeId)}`);
                 if (cwRes.ok) {
                     cleverWorker = await cwRes.json();
                 }
