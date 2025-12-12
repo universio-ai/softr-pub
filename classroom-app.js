@@ -2002,7 +2002,7 @@ window.addEventListener("universio:bootstrapped", () => {
         const wrapper = document.getElementById("universio-classroom");
         const rootEl = el("div", { id: ROOT_ID, class: "uni-root", "data-theme": initialTheme });
         rootEl.style.colorScheme = initialTheme;
-        wrapper.insertBefore(rootEl, dataEl?.nextSibling || null);
+        wrapper.appendChild(rootEl);
 
         // -------- Find and control the Softr wrapper background --------
         function getRGB(str) {
