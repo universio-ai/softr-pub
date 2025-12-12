@@ -1,5 +1,5 @@
 (function () {
-  const UPDATED_AT = "2025-11-17T03:04:40Z";
+  const UPDATED_AT = "2025-11-17T02:15:34Z";
   console.log(`[UNI] classroom-app updated ${UPDATED_AT} (runtime ${new Date().toISOString()})`);
 
   const CLASSROOM_WRAPPER_ID = "universio-classroom";
@@ -1264,32 +1264,12 @@ window.addEventListener("universio:bootstrapped", () => {
             return pill;
         }
 
-        const TIME_LOCK_MESSAGE =
-            "Great work today. You have used all of your time for your current plan. I look forward to seeing you again tomorrow!";
-
-        const PLAN_MINUTES_SEED = (() => {
-            const raw = window.logged_in_user?.time_remaining;
-            const num = Number(raw);
-            return Number.isFinite(num) ? num : null;
-        })();
-
         let latestRemainingMin = null;
-        const planNameSeed =
-            window.logged_in_user?.plan_name ||
-            window.logged_in_user?.planName ||
-            window.logged_in_user?.plan ||
-            window.__U?.profile?.plan_name ||
-            null;
-        let hasAuthoritativeRemaining = false;
         let minutesWatcher = null;
-        let timeLocked = false;
-        let timeLockNotified = false;
-        let timeMismatchReverify = false;
-        let timeMismatchOverrideUsed = false;
-        let nearExhaustionRecheck = null;
 
         function applyMinutesLeft(remaining) {
             if (typeof remaining !== "number" || Number.isNaN(remaining)) return;
+            latestRemainingMin = remaining;
 
             const applyNow = () => {
                 const el = document.getElementById("uniTimerFixed");
@@ -1329,109 +1309,19 @@ window.addEventListener("universio:bootstrapped", () => {
             }
         }
 
-        function formatMsAsClock(ms) {
-            const safe = Math.max(0, Math.floor(ms));
-            const minutes = Math.floor(safe / 60000);
-            const seconds = Math.floor((safe % 60000) / 1000);
-            return `${minutes}:${String(seconds).padStart(2, "0")}`;
-        }
-
-        function renderCountUp(totalMs) {
-            const el = document.getElementById("uniTimerFixed");
-            const leftEl = document.getElementById("uniTimerLeft");
-            const timeEl = document.getElementById("uniTimerTime");
-            if (!el || !timeEl) return;
-
-            const text = formatMsAsClock(totalMs);
-            timeEl.textContent = text;
-
-            // Keep ARIA labels in sync with the visible text + remaining minutes
-            const leftText = leftEl?.textContent || "";
-            el.setAttribute("aria-label", `${text}${leftText ? ", " + leftText : ""}`);
-        }
-
-        function broadcastMinutesLeft(remaining, { authoritative = false } = {}) {
+        function broadcastMinutesLeft(remaining) {
             if (typeof remaining !== "number" || Number.isNaN(remaining)) return;
-            let effective = remaining;
-
-            // Do not let cached/non-authoritative values override a known authoritative reading
-            if (!authoritative && hasAuthoritativeRemaining) {
-                return;
-            }
-
-            // If Softr has a positive seed but an authoritative 0 arrives, fall back and re-verify once
-            if (authoritative && remaining <= 0 && Number.isFinite(PLAN_MINUTES_SEED) && PLAN_MINUTES_SEED > 0) {
-                if (!timeMismatchOverrideUsed) {
-                    console.warn("[minutes-left] authoritative 0 contradicted by Softr seed", {
-                        remaining,
-                        seed: PLAN_MINUTES_SEED,
-                    });
-                    effective = PLAN_MINUTES_SEED;
-                    authoritative = false; // don't lock until we re-verify
-                    timeMismatchOverrideUsed = true;
-
-                    if (!timeMismatchReverify) {
-                        timeMismatchReverify = true;
-                        setTimeout(async () => {
-                            try {
-                                await fetchMinutesLeftNow();
-                            } finally {
-                                timeMismatchReverify = false;
-                            }
-                        }, 500);
-                    }
-                }
-            }
-
-            if (authoritative && remaining > 0) {
-                timeMismatchOverrideUsed = false;
-            }
-
-            if (authoritative) {
-                hasAuthoritativeRemaining = true;
-            }
-
-            latestRemainingMin = effective;
             try {
-                localStorage.setItem(LEFT_KEY, String(effective));
+                localStorage.setItem(LEFT_KEY, String(remaining));
             } catch {}
-            applyMinutesLeft(effective);
-            window.dispatchEvent(new CustomEvent("uni:minutes-left", { detail: { remaining: effective, authoritative } }));
-
-            // If we're hovering at 1 minute with an authoritative reading, re-check soon
-            // and fall back to a forced zero so the lock UI can engage reliably.
-            if (authoritative && effective <= 1) {
-                if (!nearExhaustionRecheck) {
-                    nearExhaustionRecheck = setTimeout(async () => {
-                        nearExhaustionRecheck = null;
-                        try {
-                            await fetchMinutesLeftNow();
-                        } catch {}
-
-                        if (
-                            hasAuthoritativeRemaining &&
-                            typeof latestRemainingMin === "number" &&
-                            latestRemainingMin <= 1
-                        ) {
-                            broadcastMinutesLeft(0, { authoritative: true });
-                        }
-                    }, 70_000);
-                }
-            } else if (nearExhaustionRecheck) {
-                clearTimeout(nearExhaustionRecheck);
-                nearExhaustionRecheck = null;
-            }
-        }
-
-        // If Softr exposed a time_remaining seed, show it immediately to avoid stale zero locks
-        if (Number.isFinite(PLAN_MINUTES_SEED)) {
-            broadcastMinutesLeft(PLAN_MINUTES_SEED, { authoritative: true });
+            applyMinutesLeft(remaining);
+            window.dispatchEvent(new CustomEvent("uni:minutes-left", { detail: { remaining } }));
         }
 
         // If we have a cached remaining, show it immediately (and re-apply once timer mounts)
         try {
             const cachedLeft = Number(localStorage.getItem(LEFT_KEY));
-            if (!Number.isNaN(cachedLeft) && !hasAuthoritativeRemaining) {
+            if (!Number.isNaN(cachedLeft)) {
                 broadcastMinutesLeft(cachedLeft);
             }
         } catch {}
@@ -1454,13 +1344,8 @@ window.addEventListener("universio:bootstrapped", () => {
                 ? explicitRemainingMin
                 : Math.floor(remainingMs / 60000);
 
-            const resolvedPlan = j?.plan_name || planNameSeed;
-            if (resolvedPlan) {
-                window.__uniPlanName = resolvedPlan;
-            }
-
             if (Number.isFinite(remainingMin)) {
-                broadcastMinutesLeft(remainingMin, { authoritative: true });
+                broadcastMinutesLeft(remainingMin);
             }
         }
 
@@ -1510,7 +1395,7 @@ window.addEventListener("universio:bootstrapped", () => {
                 const remainingMin = j?.updated?.remaining_today_minutes ?? j?.updated?.remaining_minutes ?? j?.updated?.remaining_min ?? (j?.updated?.remaining_ms ? Math.floor(j.updated.remaining_ms / 60000) : null);
 
                 if (typeof remainingMin === "number") {
-                    broadcastMinutesLeft(remainingMin, { authoritative: true });
+                    broadcastMinutesLeft(remainingMin);
                 }
             } catch (err) {
                 console.warn("[time-ingest failed]", err);
@@ -1523,25 +1408,6 @@ window.addEventListener("universio:bootstrapped", () => {
 
         // expose for console testing
         window.sendActiveDelta = sendActiveDelta;
-
-        async function fetchUsedTimeBaseline() {
-            try {
-                const graphId = window.__uniGraphId || document.getElementById("uni-data")?.dataset?.graph || "";
-                const nodeId = window.__uniNodeId || document.getElementById("uni-data")?.dataset?.node || "";
-                if (!graphId || !nodeId) return 0;
-
-                const r = await apiFetch("https://oomcxsfikujptkfsqgzi.supabase.co/functions/v1/ai-tutor-api/time/used", {
-                  method: "POST",
-                  body: JSON.stringify({ graphId, nodeId }),
-                });
-                const j = await r.json().catch(() => ({}));
-                const used = Number(j?.time_used_ms ?? j?.time_ingest_ms ?? j?.time_ingest ?? NaN);
-                if (Number.isFinite(used) && used > 0) return used;
-            } catch (err) {
-                console.warn("[time/used fetch failed]", err);
-            }
-            return 0;
-        }
 
         // Update the header timer's "minutes left" subline whenever time-ingest replies
         window.addEventListener("uni:minutes-left", (e) => {
@@ -2668,7 +2534,7 @@ injectStyles(`
       box-shadow: 0 12px 32px rgba(15, 18, 34, 0.12);
       backdrop-filter: blur(18px);
       -webkit-backdrop-filter: blur(18px);
-      border-radius: 999px !important;
+      border-radius: 10px !important;
       overflow: hidden;
       transition: border-color 0.2s ease, box-shadow 0.2s ease;
     }
@@ -2676,7 +2542,7 @@ injectStyles(`
     #${ROOT_ID} .uni-input-row .uni-input {
       flex: 1 1 auto;
       min-width: 0;
-      border-radius: 999px !important;
+      border-radius: 18px !important;
       border: 0.7px solid #000000 !important;
       background: rgba(255,255,255,0.65) !important;
       backdrop-filter: none !important;
@@ -2775,9 +2641,7 @@ injectStyles(`
             ""
         );
 
-        const resetWrapper = el("div", { class: "reset-wrapper" }, [resetBtn, resetHint]);
-
-        const headerRight = el("div", { class: "uni-header-right" }, [progressPill, resetWrapper]);
+        const headerRight = el("div", { class: "uni-header-right" }, [progressPill, el("div", { class: "reset-wrapper" }, [resetBtn, resetHint])]);
 
         const chatHeader = el("div", { class: "uni-card-header" }, [
             el("div", {}, [
@@ -3638,8 +3502,6 @@ injectStyles(`
         });
 
         const inputRow = el("div", { class: "uni-input-row" }, [micBtn, inputEl, sendBtn]);
-        const inputRowDefaultDisplay = inputRow.style.display || "";
-        const resetWrapperDefaultDisplay = resetWrapper.style.display || "";
         chatBody.append(messagesEl);
         chatCard.append(shellLoader, chatHeader, chatBody);
 
@@ -4278,10 +4140,6 @@ injectStyles(`
         }
 
         function loadConversationState() {
-            if (suppressConversationLoad || timeLocked) {
-                console.info("[UNI] conversation load skipped due to time lock");
-                return Promise.resolve();
-            }
             return apiFetch(convoBase + "/conversation-state/load", {
                 method: "POST",
                 body: JSON.stringify({ graphId, nodeId }),
@@ -4499,12 +4357,7 @@ injectStyles(`
                     if (!persisted) persisted = await readPersistedProgress();
                     const persistedFraction = coerceProgressFraction(persisted?.score ?? persisted?.node_percent ?? 0);
                     const persistedComplete = isCanonicalComplete(persisted);
-                    let pct = Math.round(persistedFraction * 100);
-
-                    // If the server marks the node completed but omits a percent, force 100% so the banner fires
-                    if (persistedComplete && pct < 100) {
-                        pct = 100;
-                    }
+                    const pct = Math.round(persistedFraction * 100);
 
                     if (persistedComplete && pct >= 100 && !window.__completionShown && !sessionStorage.getItem(COMPLETE_KEY())) {
                         window.__completionShown = true;
@@ -5294,119 +5147,9 @@ injectStyles(`
         window.uniProgress = markProgress;
         window.uniComplete = markComplete;
 
-        let timeLockBubble = null;
-        let suppressConversationLoad = false;
-        let inputRowHiddenForLock = false;
-        let resetHiddenForLock = false;
-
-        function clearConversationUI() {
-            conversation = [];
-            if (messagesEl) {
-                messagesEl.innerHTML = "";
-            }
-            timeLockBubble = null;
-        }
-
-        function hideControlsForLock() {
-            if (inputRow && inputRow.style.display !== "none") {
-                inputRowHiddenForLock = true;
-                inputRow.style.display = "none";
-            }
-
-            if (resetWrapper && resetWrapper.style.display !== "none") {
-                resetHiddenForLock = true;
-                resetWrapper.style.display = "none";
-            }
-        }
-
-        function restoreControlsAfterLock() {
-            if (inputRowHiddenForLock && inputRow) {
-                inputRow.style.display = inputRowDefaultDisplay;
-            }
-            inputRowHiddenForLock = false;
-
-            if (resetHiddenForLock && resetWrapper) {
-                resetWrapper.style.display = resetWrapperDefaultDisplay;
-            }
-            resetHiddenForLock = false;
-        }
-
-        function applyClassroomLock(remaining = latestRemainingMin) {
-            if (!Number.isFinite(remaining)) return;
-
-            const exhausted = hasAuthoritativeRemaining && remaining <= 0;
-            const wasLocked = timeLocked;
-            timeLocked = exhausted;
-
-            suppressConversationLoad = exhausted;
-
-            [inputEl, sendBtn, micBtn].forEach((ctl) => {
-                if (ctl) ctl.disabled = exhausted;
-            });
-
-            if (inputEl) {
-                inputEl.placeholder = exhausted ? "Come back tomorrow to continue." : "";
-            }
-
-            if (exhausted) {
-                if (!wasLocked) {
-                    clearConversationUI();
-                }
-                hideControlsForLock();
-                if (!timeLockNotified || !timeLockBubble?.isConnected) {
-                    timeLockBubble = addMessage("tutor", TIME_LOCK_MESSAGE, false);
-                    timeLockNotified = true;
-                }
-            } else {
-                restoreControlsAfterLock();
-                timeLockNotified = false;
-                // Remove any stale exhaustion notice so a restored plan doesn't show old locks
-                try {
-                    if (timeLockBubble?.remove) timeLockBubble.remove();
-                } catch {}
-                timeLockBubble = null;
-            }
-        }
-
-        window.addEventListener("uni:minutes-left", (e) => {
-            const { remaining, authoritative } = e.detail || {};
-            const numericRemaining = typeof remaining === "number" && !Number.isNaN(remaining);
-
-            if (authoritative) {
-                hasAuthoritativeRemaining = true;
-            }
-
-            // Do not let non-authoritative data override a known-good authoritative value to zero
-            if (
-                numericRemaining &&
-                !authoritative &&
-                hasAuthoritativeRemaining &&
-                typeof latestRemainingMin === "number" &&
-                latestRemainingMin > 0 &&
-                remaining <= 0
-            ) {
-                return;
-            }
-
-            if (numericRemaining) {
-                latestRemainingMin = remaining;
-            }
-
-            applyClassroomLock();
-        });
-
-        if (typeof latestRemainingMin === "number" && !Number.isNaN(latestRemainingMin)) {
-            applyClassroomLock(latestRemainingMin);
-        }
-
         function handleSend() {
             const text = (inputEl.value || "").trim();
             if (!text) return;
-
-            if (timeLocked) {
-                applyClassroomLock(latestRemainingMin);
-                return;
-            }
 
             // GA4: client submit event
             try {
@@ -5764,44 +5507,20 @@ injectStyles(`
                         await fetchMinutesLeftNow();
                     } catch {}
 
-                    let serverUsedBaselineMs = 0;
-                    try {
-                        const fetchedUsed = await fetchUsedTimeBaseline();
-                        if (fetchedUsed > 0) {
-                            serverUsedBaselineMs = fetchedUsed;
-                            try {
-                                const mergedBaseline = Math.max(
-                                    fetchedUsed,
-                                    Number(localStorage.getItem(BILLED_KEY)) || 0
-                                );
-                                localStorage.setItem(BILLED_KEY, String(mergedBaseline));
-                            } catch {}
-                            renderCountUp(serverUsedBaselineMs);
-                        }
-                    } catch (err) {
-                        console.warn("[time/used bootstrap skipped]", err);
-                    }
-
-                    // Returns the cumulative active milliseconds (server baseline + local session)
+                    // Returns the local, on-screen active milliseconds from the header timer
                     const getActiveTotalMs = () => {
                         try {
-                            const live = window.uniTimer?.value()?.totalMs ?? 0;
-                            return serverUsedBaselineMs + live;
+                            return window.uniTimer?.value()?.totalMs ?? 0;
                         } catch {
-                            return serverUsedBaselineMs;
+                            return 0;
                         }
                     };
-
-                    const syncCountUp = () => renderCountUp(getActiveTotalMs());
-                    syncCountUp();
-                    if (window.__uniCountUpTicker) clearInterval(window.__uniCountUpTicker);
-                    window.__uniCountUpTicker = setInterval(syncCountUp, 1000);
 
                     // Seed last-sent strictly from billed baseline to avoid re-billing on reload
                     let __lastSentMs = 0;
                     try {
                         const billed = Number(localStorage.getItem(BILLED_KEY)) || 0;
-                        __lastSentMs = Math.max(billed, serverUsedBaselineMs);
+                        __lastSentMs = billed;
                     } catch {}
 
                     // [CLASSROOM-ADD-2] === Active-time sync loop (10s) ===
@@ -5876,8 +5595,8 @@ injectStyles(`
                     }
                     hideTypingBubble(bootTyping);
 
-                    // 4) First-greet + prompt if no history (skip when time-locked)
-                    if (!timeLocked && (!Array.isArray(conversation) || conversation.length === 0)) {
+                    // 4) First-greet + prompt if no history
+                    if (!Array.isArray(conversation) || conversation.length === 0) {
                         const isCapstoneNode = /^CAP(?:_|$)/i.test(String(window.__uniNodeId || ""));
                         const courseNameVar = window.__uniCourseName || "this course";
                         if (isCapstoneNode) {
@@ -5895,31 +5614,31 @@ Ready to begin?`,
                             addMessage("tutor", greetings[Math.floor(Math.random() * greetings.length)], true);
                             setTimeout(nextPrompt, 400);
                         }
-
-                        // 🧩 Persist initial tutor bubbles once session_id exists
-                        setTimeout(async () => {
-                            let tries = 0;
-                            while (!window.__uniSessionId && tries++ < 10) await new Promise((r) => setTimeout(r, 300));
-                            console.debug("[init-save] new record with greeting bubbles");
-                            try {
-                                await safeSaveConversationState("fresh");
-                            } catch (e) {
-                                console.warn("[init-save failed]", e);
-                            }
-                        }, 1500);
-
-                        // 🧩 Second flush to capture all new bubbles once session_id confirmed
-                        setTimeout(async () => {
-                            let tries = 0;
-                            while (!window.__uniSessionId && tries++ < 10) await new Promise((r) => setTimeout(r, 300));
-                            console.debug("[reset-save] flushing reset greeting to Softr…", { session: window.__uniSessionId });
-                            try {
-                                await saveConversationState();
-                            } catch (e) {
-                                console.warn("[reset-save failed]", e);
-                            }
-                        }, 1500);
                     }
+
+                    // 🧩 Persist initial tutor bubbles once session_id exists
+                    setTimeout(async () => {
+                        let tries = 0;
+                        while (!window.__uniSessionId && tries++ < 10) await new Promise((r) => setTimeout(r, 300));
+                        console.debug("[init-save] new record with greeting bubbles");
+                        try {
+                            await safeSaveConversationState("fresh");
+                        } catch (e) {
+                            console.warn("[init-save failed]", e);
+                        }
+                    }, 1500);
+
+                    // 🧩 Second flush to capture all new bubbles once session_id confirmed
+                    setTimeout(async () => {
+                        let tries = 0;
+                        while (!window.__uniSessionId && tries++ < 10) await new Promise((r) => setTimeout(r, 300));
+                        console.debug("[reset-save] flushing reset greeting to Softr…", { session: window.__uniSessionId });
+                        try {
+                            await saveConversationState();
+                        } catch (e) {
+                            console.warn("[reset-save failed]", e);
+                        }
+                    }, 1500);
 
                     // 5) Load plan (clever-worker requires CWT)
                     loadPlan();
