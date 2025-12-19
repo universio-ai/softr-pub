@@ -1353,6 +1353,7 @@ window.addEventListener("universio:bootstrapped", () => {
 
         let courseUsedBaseMs = 0;
         let countupTicker = null;
+        let lastCountupLabel = "";
 
         function formatCountupLabel(totalMs) {
             const safeMs = Math.max(0, Math.floor(Number(totalMs) || 0));
@@ -1370,12 +1371,15 @@ window.addEventListener("universio:bootstrapped", () => {
             const label = formatCountupLabel(totalMs);
             const timeEl = document.getElementById("uniTimerTime");
             if (timeEl) {
-                timeEl.textContent = label;
+                if (timeEl.textContent !== label) {
+                    timeEl.textContent = label;
+                }
             }
             const container = document.getElementById("uniTimerFixed");
             if (container) {
                 container.setAttribute("data-total-ms", String(Math.max(0, Math.floor(totalMs))));
             }
+            lastCountupLabel = label;
         }
 
         function ensureCountupObserver() {
@@ -1385,10 +1389,15 @@ window.addEventListener("universio:bootstrapped", () => {
                 if (!timeEl) return false;
                 const observer = new MutationObserver(() => {
                     if (courseUsedBaseMs <= 0) return;
+                    if (window.__uniCountupMutating) return;
                     const timerValue = typeof window.uniTimer?.value === "function" ? window.uniTimer.value() : null;
                     const sessionMsRaw = Number(timerValue?.totalMs ?? timerValue?.elapsedMs ?? 0);
                     const sessionMs = Number.isFinite(sessionMsRaw) ? Math.max(0, sessionMsRaw) : 0;
+                    const nextLabel = formatCountupLabel(courseUsedBaseMs + sessionMs);
+                    if (nextLabel === lastCountupLabel) return;
+                    window.__uniCountupMutating = true;
                     applyCountupTotal(courseUsedBaseMs + sessionMs);
+                    window.__uniCountupMutating = false;
                 });
                 observer.observe(timeEl, { childList: true, subtree: true, characterData: true });
                 window.__uniCountupObserver = observer;
