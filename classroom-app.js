@@ -1434,7 +1434,7 @@ window.addEventListener("universio:bootstrapped", () => {
                     const sessionMsRaw = Number(timerValue?.totalMs ?? timerValue?.elapsedMs ?? 0);
                     const sessionMs = Number.isFinite(sessionMsRaw) ? Math.max(0, sessionMsRaw) : 0;
                     const nextLabel = formatCountupLabel(courseUsedBaseMs + sessionMs);
-                    if (nextLabel === lastCountupLabel) return;
+                    if (timeEl.textContent === nextLabel) return;
                     window.__uniCountupMutating = true;
                     applyCountupTotal(courseUsedBaseMs + sessionMs);
                     window.__uniCountupMutating = false;
@@ -1915,6 +1915,7 @@ window.addEventListener("universio:bootstrapped", () => {
             } catch {}
             return null;
         }
+        window.refreshCourseUsedBaseline = refreshCourseUsedBaseline;
 
         // === Read nextEligibleUrl for current course (short code) ===
         function getNextEligibleUrlForCourseSafe() {
