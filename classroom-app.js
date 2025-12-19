@@ -1358,6 +1358,11 @@ window.addEventListener("universio:bootstrapped", () => {
         function parseNumberLike(value) {
             if (value == null) return NaN;
             if (typeof value === "number") return value;
+            if (typeof value === "object") {
+                const picked = parseSoftrValue(value);
+                if (picked) return parseNumberLike(picked);
+                return NaN;
+            }
             if (typeof value === "string") {
                 const cleaned = value.replace(/[, ]+/g, "").trim();
                 if (!cleaned) return NaN;
