@@ -1351,6 +1351,53 @@ window.addEventListener("universio:bootstrapped", () => {
 
         window.fetchMinutesLeftNow = fetchMinutesLeftNow;
 
+        let courseUsedBaseMs = 0;
+        let countupTicker = null;
+
+        function formatCountupLabel(totalMs) {
+            const safeMs = Math.max(0, Math.floor(Number(totalMs) || 0));
+            const totalSeconds = Math.floor(safeMs / 1000);
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+
+            if (hours > 0) return `${hours}h ${minutes.toString().padStart(2, "0")}m`;
+            if (minutes >= 10) return `${minutes}m`;
+            return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+        }
+
+        function applyCountupTotal(totalMs) {
+            const label = formatCountupLabel(totalMs);
+            const timeEl = document.getElementById("uniTimerTime");
+            if (timeEl) {
+                timeEl.textContent = label;
+            }
+            const container = document.getElementById("uniTimerFixed");
+            if (container) {
+                container.setAttribute("data-total-ms", String(Math.max(0, Math.floor(totalMs))));
+            }
+        }
+
+        function syncCountupBaseline(baseMs = 0) {
+            if (!Number.isFinite(baseMs) || baseMs < 0) return;
+            const normalized = Math.max(courseUsedBaseMs, Math.floor(baseMs));
+            courseUsedBaseMs = normalized;
+
+            const compute = () => {
+                const timerValue = typeof window.uniTimer?.value === "function" ? window.uniTimer.value() : null;
+                const sessionMsRaw = Number(timerValue?.totalMs ?? timerValue?.elapsedMs ?? 0);
+                const sessionMs = Number.isFinite(sessionMsRaw) ? Math.max(0, sessionMsRaw) : 0;
+                const totalMs = courseUsedBaseMs + sessionMs;
+                applyCountupTotal(totalMs);
+                return totalMs;
+            };
+
+            compute();
+            if (!countupTicker) {
+                countupTicker = setInterval(compute, 1000);
+            }
+        }
+
         // [CLASSROOM-ADD-1] Send active-time delta to user-bootstrap (uses CWT in apiHeaders)
         async function sendActiveDelta(deltaMs, final = false) {
             if (deltaMs <= 0) return;
@@ -1396,6 +1443,11 @@ window.addEventListener("universio:bootstrapped", () => {
 
                 if (typeof remainingMin === "number") {
                     broadcastMinutesLeft(remainingMin);
+                }
+
+                const courseUsedMs = Number(j?.updated?.course_used_ms ?? NaN);
+                if (Number.isFinite(courseUsedMs)) {
+                    syncCountupBaseline(courseUsedMs);
                 }
             } catch (err) {
                 console.warn("[time-ingest failed]", err);
@@ -4602,6 +4654,11 @@ injectStyles(`
                     try {
                         localStorage.setItem("uni:lastContext", JSON.stringify({ graphId: window.__uniGraphId, nodeId: window.__uniNodeId }));
                     } catch {}
+                }
+
+                const storedCourseUsed = Number(data?.course_used_ms ?? data?.course_used ?? NaN);
+                if (Number.isFinite(storedCourseUsed)) {
+                    syncCountupBaseline(storedCourseUsed);
                 }
 
                 if (data?.score != null) {
