@@ -1360,6 +1360,7 @@ window.addEventListener("universio:bootstrapped", () => {
         let countupTicker = null;
         let lastCountupLabel = "";
         let countupVisible = true;
+        let countupBaselineReady = false;
 
         try {
             setTimeout(() => {
@@ -1413,6 +1414,7 @@ window.addEventListener("universio:bootstrapped", () => {
         }
 
         function setCountupVisibility(visible) {
+            if (!countupBaselineReady) visible = false;
             if (countupVisible === visible) return;
             countupVisible = visible;
             const timeEl = document.getElementById("uniTimerTime");
@@ -1442,7 +1444,7 @@ window.addEventListener("universio:bootstrapped", () => {
             const attach = () => {
                 const timeEl = document.getElementById("uniTimerTime");
                 if (!timeEl) return false;
-                if (courseUsedBaseMs <= 0) setCountupVisibility(false);
+                if (!countupBaselineReady) setCountupVisibility(false);
                 const timerValue = typeof window.uniTimer?.value === "function" ? window.uniTimer.value() : null;
                 const sessionMsRaw = Number(timerValue?.totalMs ?? timerValue?.elapsedMs ?? 0);
                 const sessionMs = Number.isFinite(sessionMsRaw) ? Math.max(0, sessionMsRaw) : 0;
@@ -1477,9 +1479,11 @@ window.addEventListener("universio:bootstrapped", () => {
         function syncCountupBaseline(baseMs = 0) {
             const parsed = parseNumberLike(baseMs);
             if (!Number.isFinite(parsed) || parsed < 0) {
+                countupBaselineReady = false;
                 setCountupVisibility(false);
                 return;
             }
+            countupBaselineReady = true;
             const normalized = Math.max(courseUsedBaseMs, Math.floor(normalizeDurationMs(parsed)));
             courseUsedBaseMs = normalized;
 
