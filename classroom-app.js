@@ -1467,15 +1467,22 @@ window.addEventListener("universio:bootstrapped", () => {
             const attach = () => {
                 const timeEl = document.getElementById("uniTimerTime");
                 if (!timeEl) return false;
-                if (!countupBaselineReady) setCountupVisibility(false);
+                if (!countupBaselineReady) {
+                    timeEl.textContent = "";
+                    setCountupVisibility(false);
+                }
                 const timerValue = typeof window.uniTimer?.value === "function" ? window.uniTimer.value() : null;
                 const sessionMsRaw = Number(timerValue?.totalMs ?? timerValue?.elapsedMs ?? 0);
                 const sessionMs = Number.isFinite(sessionMsRaw) ? Math.max(0, sessionMsRaw) : 0;
                 if (courseUsedBaseMs > 0) {
                     applyCountupTotal(courseUsedBaseMs + sessionMs);
                 }
-                const observer = new MutationObserver(() => {
-                    if (!countupBaselineReady || courseUsedBaseMs <= 0) return;
+            const observer = new MutationObserver(() => {
+                    if (!countupBaselineReady || courseUsedBaseMs <= 0) {
+                        if (timeEl.textContent) timeEl.textContent = "";
+                        setCountupVisibility(false);
+                        return;
+                    }
                     if (window.__uniCountupMutating) return;
                     const timerValue = typeof window.uniTimer?.value === "function" ? window.uniTimer.value() : null;
                     const sessionMsRaw = Number(timerValue?.totalMs ?? timerValue?.elapsedMs ?? 0);
