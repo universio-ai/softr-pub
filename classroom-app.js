@@ -1378,6 +1378,31 @@ window.addEventListener("universio:bootstrapped", () => {
             }
         }
 
+        function ensureCountupObserver() {
+            if (window.__uniCountupObserver) return;
+            const attach = () => {
+                const timeEl = document.getElementById("uniTimerTime");
+                if (!timeEl) return false;
+                const observer = new MutationObserver(() => {
+                    if (courseUsedBaseMs <= 0) return;
+                    const timerValue = typeof window.uniTimer?.value === "function" ? window.uniTimer.value() : null;
+                    const sessionMsRaw = Number(timerValue?.totalMs ?? timerValue?.elapsedMs ?? 0);
+                    const sessionMs = Number.isFinite(sessionMsRaw) ? Math.max(0, sessionMsRaw) : 0;
+                    applyCountupTotal(courseUsedBaseMs + sessionMs);
+                });
+                observer.observe(timeEl, { childList: true, subtree: true, characterData: true });
+                window.__uniCountupObserver = observer;
+                return true;
+            };
+
+            if (!attach()) {
+                const mo = new MutationObserver(() => {
+                    if (attach()) mo.disconnect();
+                });
+                mo.observe(document.body, { childList: true, subtree: true });
+            }
+        }
+
         function syncCountupBaseline(baseMs = 0) {
             if (!Number.isFinite(baseMs) || baseMs < 0) return;
             const normalized = Math.max(courseUsedBaseMs, Math.floor(baseMs));
@@ -1393,6 +1418,7 @@ window.addEventListener("universio:bootstrapped", () => {
             };
 
             compute();
+            ensureCountupObserver();
             if (!countupTicker) {
                 countupTicker = setInterval(compute, 1000);
             }
