@@ -1355,6 +1355,18 @@ window.addEventListener("universio:bootstrapped", () => {
         let countupTicker = null;
         let lastCountupLabel = "";
 
+        function parseNumberLike(value) {
+            if (value == null) return NaN;
+            if (typeof value === "number") return value;
+            if (typeof value === "string") {
+                const cleaned = value.replace(/[, ]+/g, "").trim();
+                if (!cleaned) return NaN;
+                const num = Number(cleaned);
+                return Number.isFinite(num) ? num : NaN;
+            }
+            return NaN;
+        }
+
         function formatCountupLabel(totalMs) {
             const safeMs = Math.max(0, Math.floor(Number(totalMs) || 0));
             const totalSeconds = Math.floor(safeMs / 1000);
@@ -1419,8 +1431,9 @@ window.addEventListener("universio:bootstrapped", () => {
         }
 
         function syncCountupBaseline(baseMs = 0) {
-            if (!Number.isFinite(baseMs) || baseMs < 0) return;
-            const normalized = Math.max(courseUsedBaseMs, Math.floor(baseMs));
+            const parsed = parseNumberLike(baseMs);
+            if (!Number.isFinite(parsed) || parsed < 0) return;
+            const normalized = Math.max(courseUsedBaseMs, Math.floor(parsed));
             courseUsedBaseMs = normalized;
 
             const compute = () => {
@@ -1486,7 +1499,7 @@ window.addEventListener("universio:bootstrapped", () => {
                     broadcastMinutesLeft(remainingMin);
                 }
 
-                const courseUsedMs = Number(j?.updated?.course_used_ms ?? NaN);
+                const courseUsedMs = parseNumberLike(j?.updated?.course_used_ms ?? NaN);
                 if (Number.isFinite(courseUsedMs)) {
                     syncCountupBaseline(courseUsedMs);
                 }
@@ -4697,7 +4710,7 @@ injectStyles(`
                     } catch {}
                 }
 
-                const storedCourseUsed = Number(data?.course_used_ms ?? data?.course_used ?? NaN);
+                const storedCourseUsed = parseNumberLike(data?.course_used_ms ?? data?.course_used ?? NaN);
                 if (Number.isFinite(storedCourseUsed)) {
                     syncCountupBaseline(storedCourseUsed);
                 }
