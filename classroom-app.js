@@ -1166,6 +1166,11 @@ window.addEventListener("universio:bootstrapped", () => {
                 positionNavPill();
             }
             writeStoredProgressFraction(n / 100);
+
+            if (!window.__courseUsedFromProgress && courseUsedBaseMs <= 0) {
+                window.__courseUsedFromProgress = true;
+                refreshCourseUsedBaseline().catch(() => {});
+            }
         }
 
         // optional: for console testing
