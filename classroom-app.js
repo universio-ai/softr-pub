@@ -1359,6 +1359,13 @@ window.addEventListener("universio:bootstrapped", () => {
         let courseUsedBaseMs = 0;
         let countupTicker = null;
         let lastCountupLabel = "";
+        let countupVisible = true;
+
+        try {
+            setTimeout(() => {
+                if (courseUsedBaseMs <= 0) setCountupVisibility(false);
+            }, 0);
+        } catch {}
 
         function parseNumberLike(value) {
             if (value == null) return NaN;
@@ -1405,6 +1412,15 @@ window.addEventListener("universio:bootstrapped", () => {
             return `${minutes}:${seconds.toString().padStart(2, "0")}`;
         }
 
+        function setCountupVisibility(visible) {
+            if (countupVisible === visible) return;
+            countupVisible = visible;
+            const timeEl = document.getElementById("uniTimerTime");
+            if (timeEl) {
+                timeEl.style.visibility = visible ? "visible" : "hidden";
+            }
+        }
+
         function applyCountupTotal(totalMs) {
             const label = formatCountupLabel(totalMs);
             const timeEl = document.getElementById("uniTimerTime");
@@ -1418,6 +1434,7 @@ window.addEventListener("universio:bootstrapped", () => {
                 container.setAttribute("data-total-ms", String(Math.max(0, Math.floor(totalMs))));
             }
             lastCountupLabel = label;
+            setCountupVisibility(true);
         }
 
         function ensureCountupObserver() {
@@ -1425,6 +1442,7 @@ window.addEventListener("universio:bootstrapped", () => {
             const attach = () => {
                 const timeEl = document.getElementById("uniTimerTime");
                 if (!timeEl) return false;
+                if (courseUsedBaseMs <= 0) setCountupVisibility(false);
                 const timerValue = typeof window.uniTimer?.value === "function" ? window.uniTimer.value() : null;
                 const sessionMsRaw = Number(timerValue?.totalMs ?? timerValue?.elapsedMs ?? 0);
                 const sessionMs = Number.isFinite(sessionMsRaw) ? Math.max(0, sessionMsRaw) : 0;
@@ -1458,7 +1476,10 @@ window.addEventListener("universio:bootstrapped", () => {
 
         function syncCountupBaseline(baseMs = 0) {
             const parsed = parseNumberLike(baseMs);
-            if (!Number.isFinite(parsed) || parsed < 0) return;
+            if (!Number.isFinite(parsed) || parsed < 0) {
+                setCountupVisibility(false);
+                return;
+            }
             const normalized = Math.max(courseUsedBaseMs, Math.floor(normalizeDurationMs(parsed)));
             courseUsedBaseMs = normalized;
 
