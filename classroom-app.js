@@ -1439,6 +1439,23 @@ window.addEventListener("universio:bootstrapped", () => {
             setCountupVisibility(true);
         }
 
+        function applyCountupBaseline(baseMs) {
+            const parsed = parseNumberLike(baseMs);
+            if (!Number.isFinite(parsed) || parsed < 0) {
+                countupBaselineReady = false;
+                setCountupVisibility(false);
+                return null;
+            }
+            countupBaselineReady = true;
+            const normalized = Math.max(courseUsedBaseMs, Math.floor(normalizeDurationMs(parsed)));
+            courseUsedBaseMs = normalized;
+            const timerValue = typeof window.uniTimer?.value === "function" ? window.uniTimer.value() : null;
+            const sessionMsRaw = Number(timerValue?.totalMs ?? timerValue?.elapsedMs ?? 0);
+            const sessionMs = Number.isFinite(sessionMsRaw) ? Math.max(0, sessionMsRaw) : 0;
+            applyCountupTotal(courseUsedBaseMs + sessionMs);
+            return courseUsedBaseMs;
+        }
+
         function ensureCountupObserver() {
             if (window.__uniCountupObserver) return;
             const attach = () => {
@@ -1552,6 +1569,7 @@ window.addEventListener("universio:bootstrapped", () => {
 
                 const courseUsedMs = parseNumberLike(j?.updated?.course_used_ms ?? NaN);
                 if (Number.isFinite(courseUsedMs)) {
+                    applyCountupBaseline(courseUsedMs);
                     syncCountupBaseline(courseUsedMs);
                 }
             } catch (err) {
@@ -1938,6 +1956,7 @@ window.addEventListener("universio:bootstrapped", () => {
                 const data = await res.json().catch(() => ({}));
                 const storedCourseUsed = parseNumberLike(data?.course_used_ms ?? data?.course_used ?? NaN);
                 if (Number.isFinite(storedCourseUsed)) {
+                    applyCountupBaseline(storedCourseUsed);
                     syncCountupBaseline(storedCourseUsed);
                     return storedCourseUsed;
                 }
@@ -4785,7 +4804,11 @@ injectStyles(`
 
                 const storedCourseUsed = parseNumberLike(data?.course_used_ms ?? data?.course_used ?? NaN);
                 if (Number.isFinite(storedCourseUsed)) {
+                    applyCountupBaseline(storedCourseUsed);
                     syncCountupBaseline(storedCourseUsed);
+                } else {
+                    countupBaselineReady = false;
+                    setCountupVisibility(false);
                 }
 
                 if (data?.score != null) {
