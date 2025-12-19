@@ -1366,6 +1366,18 @@ window.addEventListener("universio:bootstrapped", () => {
             }
             return NaN;
         }
+        function normalizeDurationMs(value) {
+            if (!Number.isFinite(value) || value < 0) return 0;
+            const maxReasonableMs = 31_536_000_000; // ~365 days
+            let normalized = value;
+            while (normalized > maxReasonableMs && normalized % 1000 === 0) {
+                normalized = normalized / 1000;
+            }
+            if (normalized > maxReasonableMs) {
+                normalized = Math.min(normalized, maxReasonableMs);
+            }
+            return normalized;
+        }
 
         function formatCountupLabel(totalMs) {
             const safeMs = Math.max(0, Math.floor(Number(totalMs) || 0));
@@ -1433,7 +1445,7 @@ window.addEventListener("universio:bootstrapped", () => {
         function syncCountupBaseline(baseMs = 0) {
             const parsed = parseNumberLike(baseMs);
             if (!Number.isFinite(parsed) || parsed < 0) return;
-            const normalized = Math.max(courseUsedBaseMs, Math.floor(parsed));
+            const normalized = Math.max(courseUsedBaseMs, Math.floor(normalizeDurationMs(parsed)));
             courseUsedBaseMs = normalized;
 
             const compute = () => {
