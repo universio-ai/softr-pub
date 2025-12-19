@@ -1439,20 +1439,26 @@ window.addEventListener("universio:bootstrapped", () => {
             setCountupVisibility(true);
         }
 
-        function applyCountupBaseline(baseMs) {
+        function applyCountupBaseline(baseMs, { source = "server" } = {}) {
             const parsed = parseNumberLike(baseMs);
             if (!Number.isFinite(parsed) || parsed < 0) {
                 countupBaselineReady = false;
                 setCountupVisibility(false);
                 return null;
             }
-            countupBaselineReady = true;
+            if (source === "server") {
+                countupBaselineReady = true;
+            }
             const normalized = Math.max(courseUsedBaseMs, Math.floor(normalizeDurationMs(parsed)));
             courseUsedBaseMs = normalized;
             const timerValue = typeof window.uniTimer?.value === "function" ? window.uniTimer.value() : null;
             const sessionMsRaw = Number(timerValue?.totalMs ?? timerValue?.elapsedMs ?? 0);
             const sessionMs = Number.isFinite(sessionMsRaw) ? Math.max(0, sessionMsRaw) : 0;
-            applyCountupTotal(courseUsedBaseMs + sessionMs);
+            if (countupBaselineReady) {
+                applyCountupTotal(courseUsedBaseMs + sessionMs);
+            } else {
+                setCountupVisibility(false);
+            }
             return courseUsedBaseMs;
         }
 
@@ -1469,7 +1475,7 @@ window.addEventListener("universio:bootstrapped", () => {
                     applyCountupTotal(courseUsedBaseMs + sessionMs);
                 }
                 const observer = new MutationObserver(() => {
-                    if (courseUsedBaseMs <= 0) return;
+                    if (!countupBaselineReady || courseUsedBaseMs <= 0) return;
                     if (window.__uniCountupMutating) return;
                     const timerValue = typeof window.uniTimer?.value === "function" ? window.uniTimer.value() : null;
                     const sessionMsRaw = Number(timerValue?.totalMs ?? timerValue?.elapsedMs ?? 0);
@@ -1500,11 +1506,14 @@ window.addEventListener("universio:bootstrapped", () => {
                 setCountupVisibility(false);
                 return;
             }
-            countupBaselineReady = true;
             const normalized = Math.max(courseUsedBaseMs, Math.floor(normalizeDurationMs(parsed)));
             courseUsedBaseMs = normalized;
 
             const compute = () => {
+                if (!countupBaselineReady) {
+                    setCountupVisibility(false);
+                    return 0;
+                }
                 const timerValue = typeof window.uniTimer?.value === "function" ? window.uniTimer.value() : null;
                 const sessionMsRaw = Number(timerValue?.totalMs ?? timerValue?.elapsedMs ?? 0);
                 const sessionMs = Number.isFinite(sessionMsRaw) ? Math.max(0, sessionMsRaw) : 0;
@@ -1569,7 +1578,7 @@ window.addEventListener("universio:bootstrapped", () => {
 
                 const courseUsedMs = parseNumberLike(j?.updated?.course_used_ms ?? NaN);
                 if (Number.isFinite(courseUsedMs)) {
-                    applyCountupBaseline(courseUsedMs);
+                    applyCountupBaseline(courseUsedMs, { source: "server" });
                     syncCountupBaseline(courseUsedMs);
                 }
             } catch (err) {
@@ -1956,7 +1965,7 @@ window.addEventListener("universio:bootstrapped", () => {
                 const data = await res.json().catch(() => ({}));
                 const storedCourseUsed = parseNumberLike(data?.course_used_ms ?? data?.course_used ?? NaN);
                 if (Number.isFinite(storedCourseUsed)) {
-                    applyCountupBaseline(storedCourseUsed);
+                    applyCountupBaseline(storedCourseUsed, { source: "server" });
                     syncCountupBaseline(storedCourseUsed);
                     return storedCourseUsed;
                 }
@@ -4804,7 +4813,7 @@ injectStyles(`
 
                 const storedCourseUsed = parseNumberLike(data?.course_used_ms ?? data?.course_used ?? NaN);
                 if (Number.isFinite(storedCourseUsed)) {
-                    applyCountupBaseline(storedCourseUsed);
+                    applyCountupBaseline(storedCourseUsed, { source: "server" });
                     syncCountupBaseline(storedCourseUsed);
                 } else {
                     countupBaselineReady = false;
