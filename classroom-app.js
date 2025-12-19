@@ -1379,6 +1379,10 @@ window.addEventListener("universio:bootstrapped", () => {
         function normalizeDurationMs(value) {
             if (!Number.isFinite(value) || value < 0) return 0;
             const maxReasonableMs = 31_536_000_000; // ~365 days
+            const yearPlaceholderWindowMs = 86_400_000; // 24 hours
+            if (value >= maxReasonableMs - yearPlaceholderWindowMs && value <= maxReasonableMs + yearPlaceholderWindowMs) {
+                return 0;
+            }
             let normalized = value;
             while (normalized > maxReasonableMs && normalized % 1000 === 0) {
                 normalized = normalized / 1000;
