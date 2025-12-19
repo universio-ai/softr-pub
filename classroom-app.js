@@ -1873,6 +1873,27 @@ window.addEventListener("universio:bootstrapped", () => {
             return res.json();
         }
 
+        async function refreshCourseUsedBaseline() {
+            try {
+                const res = await apiFetch(convoBase + "/lesson/progress", {
+                    method: "POST",
+                    body: JSON.stringify({
+                        graphId: window.__uniGraphId,
+                        nodeId: window.__uniNodeId,
+                        mode: "read",
+                    }),
+                });
+                if (!res.ok) return null;
+                const data = await res.json().catch(() => ({}));
+                const storedCourseUsed = parseNumberLike(data?.course_used_ms ?? data?.course_used ?? NaN);
+                if (Number.isFinite(storedCourseUsed)) {
+                    syncCountupBaseline(storedCourseUsed);
+                    return storedCourseUsed;
+                }
+            } catch {}
+            return null;
+        }
+
         // === Read nextEligibleUrl for current course (short code) ===
         function getNextEligibleUrlForCourseSafe() {
             const short = String(window.__uniGraphId || "").match(/^C\d{3}/)?.[0] || null;
@@ -5599,6 +5620,21 @@ injectStyles(`
 
                     // 🌟 RESTORE once CWT is valid (now authenticated)
                     await restoreProgress();
+
+                    if (!window.__courseUsedRefresh) {
+                        window.__courseUsedRefresh = true;
+                        let attempts = 0;
+                        const maxAttempts = 4;
+                        const refreshLoop = async () => {
+                            if (courseUsedBaseMs > 0 || attempts >= maxAttempts) return;
+                            attempts += 1;
+                            await refreshCourseUsedBaseline();
+                            if (courseUsedBaseMs <= 0 && attempts < maxAttempts) {
+                                setTimeout(refreshLoop, 1500);
+                            }
+                        };
+                        setTimeout(refreshLoop, 1200);
+                    }
 
                     // 🔧 B. Skip redundant “mark start” if already >1%
                     try {
