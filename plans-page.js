@@ -42,7 +42,7 @@
     return normalized === "active" || normalized === "trial" || normalized === "trialing";
   }
 
-  function normalizePlanTier(rawCode) {
+  function normalizePlanCode(rawCode) {
     const normalized = String(rawCode || "").trim().toLowerCase();
     if (!normalized) return "";
     if (normalized === "pro_trial") return "pro_trial";
@@ -52,31 +52,15 @@
     return normalized;
   }
 
-  function normalizeCycle(rawCycle) {
-    const normalized = String(rawCycle || "").trim().toLowerCase();
-    if (!normalized) return "";
-    if (normalized.startsWith("m")) return "monthly";
-    if (normalized.startsWith("a") || normalized.startsWith("y")) return "annual";
-    return "";
-  }
-
-  function resolveTierPlanCode(tier, cycle) {
-    if (!tier || tier === "free") return "free";
-    if (tier === "pro_trial") return "pro_trial";
-    if (!cycle) return `${tier}_annual`;
-    return `${tier}_${cycle}`;
-  }
-
   // ---------- Current plan ----------
   function getPlanState() {
     const u = window.logged_in_user || {};
 
-    const plan_code = (
+    const plan_code = normalizePlanCode(
       u.plan_code ||
       u.billing_plan_code ||
       ""
     );
-    const plan_tier = normalizePlanTier(plan_code);
 
     const plan_status = (
       u.plan_status ||
