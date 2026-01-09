@@ -409,22 +409,27 @@
         return;
       }
 
-      const headers = {
-        "Content-Type": "application/json",
-        "X-User-Email": id.email,
-        "X-User-Name": id.name,
-        "X-User-Id": id.softrUserId || "",
-        "X-Client": "web",
-        "X-Agent": "softr-web"
-      };
-      if (id.session) headers["X-Softr-Session"] = id.session;
-
       const res = await fetchWithRetry(() =>
-        fetch(`${BFF_BASE}/start-pro-trial`, { method: "POST", headers })
+        fetch(`${BFF_BASE}/user-bootstrap`, {
+          method: "POST",
+          credentials: "omit",
+          cache: "no-store",
+          headers: {
+            "content-type": "application/json",
+            "cache-control": "no-store"
+          },
+          body: JSON.stringify({
+            email: id.email,
+            include_progress: false,
+            include_last_activity: false,
+            probe_plan: true
+          })
+        })
       );
 
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
+      if (!res.ok || !data?.ok) {
+        debugLog("[plans] Pro trial bootstrap failed", data);
         alert(data?.error || "Could not start Pro Trial.");
         return;
       }
