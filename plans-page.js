@@ -548,12 +548,12 @@
           btn.disabled = true;
           btn.setAttribute("aria-busy", "true");
           try {
-            if (currentLabel === "LOCK IN PRO PLAN") {
+            if (planState.plan_code === "pro_trial" && isProCard) {
               if (planState.pro_trial_locked_in) return;
               await startLockInProTrial({ cycle: billingCycle });
               return;
             }
-            if (canonical === "pro_trial" && planState.plan_code === "pro_trial") {
+            if (currentLabel === "LOCK IN PRO PLAN") {
               if (planState.pro_trial_locked_in) return;
               await startLockInProTrial({ cycle: billingCycle });
               return;
