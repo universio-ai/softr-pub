@@ -22,9 +22,20 @@
   // Default cycle shown on page
   let billingCycle = "annual";
   let initialized = false;
+  let profileHydrationPromise = null;
 
   // Keep track of buttons we've already wired
   const wiredButtons = new WeakSet();
+
+  function isDebugEnabled() {
+    return window.__UM_DEBUG_PLANS === true;
+  }
+
+  function debugLog(...args) {
+    if (isDebugEnabled()) {
+      console.log(...args);
+    }
+  }
 
   function coerceBoolean(value) {
     if (typeof value === "boolean") return value;
@@ -72,10 +83,18 @@
     return cycle ? `${tier}_${cycle}` : tier;
   }
 
+  function getCachedProfile() {
+    try {
+      return JSON.parse(sessionStorage.getItem("universio:profile") || "null") || {};
+    } catch {
+      return {};
+    }
+  }
+
   // ---------- Current plan ----------
   function getPlanState() {
     const u = window.logged_in_user || {};
-    const profile = window.__U?.profile || {};
+    const profile = window.__U?.profile || getCachedProfile() || {};
 
     const plan_code = normalizePlanCode(
       u.plan_code ||
@@ -166,6 +185,55 @@
       session: u.session_token || "",
       softrUserId: u.id || u.user_id || ""
     };
+  }
+
+  async function ensureProfileHydrated() {
+    if (window.__U?.profile?.plan_code || window.__U?.profile?.plan_status || window.__U?.profile?.plan_name) {
+      return;
+    }
+    const email = (window.logged_in_user?.softr_user_email || "").toLowerCase();
+    if (!email) return;
+
+    if (profileHydrationPromise) {
+      await profileHydrationPromise;
+      return;
+    }
+
+    profileHydrationPromise = (async () => {
+      try {
+        debugLog("[plans] Hydrating profile via user-bootstrap");
+        const res = await fetch(`${BFF_BASE}/user-bootstrap`, {
+          method: "POST",
+          credentials: "omit",
+          cache: "no-store",
+          headers: {
+            "content-type": "application/json",
+            "cache-control": "no-store",
+          },
+          body: JSON.stringify({
+            email,
+            include_progress: false,
+            include_last_activity: false,
+            probe_plan: true,
+          }),
+        });
+        const out = await res.json().catch(() => ({}));
+        if (!out?.ok) {
+          debugLog("[plans] Bootstrap failed", out?.error || out);
+          return;
+        }
+        const data = out.data || {};
+        window.__U = window.__U || {};
+        if (data.profile) {
+          window.__U.profile = data.profile;
+          sessionStorage.setItem("universio:profile", JSON.stringify(data.profile || {}));
+        }
+      } catch (err) {
+        debugLog("[plans] Bootstrap error", err);
+      }
+    })();
+
+    await profileHydrationPromise;
   }
 
   // Normalize: uppercase, trim, collapse spaces, strip punctuation
@@ -302,6 +370,13 @@
       const body = JSON.stringify({
         price_id: priceId,
         lock_in_pro_trial: true,
+        success_url: window.location.origin + "/dashboard",
+        cancel_url: window.location.origin + "/plans"
+      });
+      debugLog("[plans] Lock-in checkout payload:", {
+        price_id: priceId,
+        lock_in_pro_trial: true,
+        billing_cycle: cycle,
         success_url: window.location.origin + "/dashboard",
         cancel_url: window.location.origin + "/plans"
       });
@@ -563,27 +638,38 @@
           const currentOnProTrial = isTrialActive(currentPlanState);
           const currentInTrialWindow = isTrialWindow(currentPlanState);
           const currentLockedIn = currentPlanState.pro_trial_locked_in;
+          debugLog("[plans] CTA state", {
+            plan_code: currentPlanState.plan_code,
+            plan_status: currentPlanState.plan_status,
+            pro_trial_end_at: currentPlanState.pro_trial_end_at,
+            pro_trial_locked_in: currentPlanState.pro_trial_locked_in,
+            billingCycle,
+          });
           const currentLabel = normalizeLabel(btn.textContent || "");
           btn.disabled = true;
           btn.setAttribute("aria-busy", "true");
           try {
             if (currentPlanState.plan_code === "pro_trial" && isProCard) {
               if (currentLockedIn) return;
+              debugLog("[plans] CTA branch: lock-in (plan_code pro_trial)");
               await startLockInProTrial({ cycle: billingCycle });
               return;
             }
             if (currentLabel === "LOCK IN PRO PLAN") {
               if (currentLockedIn) return;
+              debugLog("[plans] CTA branch: lock-in (label)");
               await startLockInProTrial({ cycle: billingCycle });
               return;
             }
             if (isProCard) {
               if (currentOnProTrial || currentInTrialWindow) {
                 if (currentLockedIn) return;
+                debugLog("[plans] CTA branch: lock-in (trial active/window)");
                 await startLockInProTrial({ cycle: billingCycle });
                 return;
               }
 
+              debugLog("[plans] CTA branch: checkout (pro)");
               await startCheckout({ plan_code: `pro_${billingCycle}`, cycle: billingCycle });
               return;
             }
@@ -591,9 +677,11 @@
             if (canonical === "pro_trial") {
               if (currentOnProTrial || currentInTrialWindow) {
                 if (currentLockedIn) return;
+                debugLog("[plans] CTA branch: lock-in (trial active/window, pro_trial)");
                 await startLockInProTrial({ cycle: billingCycle });
                 return;
               }
+              debugLog("[plans] CTA branch: start trial");
               await startProTrial();
               return;
             }
@@ -601,8 +689,10 @@
             if (canonical === "free") {
               // Free just routes user to app or sign-up
               if (!isLoggedIn) {
+                debugLog("[plans] CTA branch: free (sign-in)");
                 window.location.href = "/sign-in?redirect=/dashboard";
               } else {
+                debugLog("[plans] CTA branch: free (dashboard)");
                 window.location.href = "/dashboard";
               }
               return;
@@ -611,6 +701,7 @@
             // Only paid plans call Stripe checkout
             if (PRICE_IDS[canonical]) {
               console.log("[plans] Plan selected:", canonical, billingCycle);
+              debugLog("[plans] CTA branch: checkout", { canonical, billingCycle });
               await startCheckout({ plan_code: canonical, cycle: billingCycle });
             }
           } finally {
@@ -624,10 +715,11 @@
     });
   }
 
-  function init() {
+  async function init() {
     if (initialized) return;
     initialized = true;
     wireBillingToggle();
+    await ensureProfileHydrated();
     wirePlanButtons();
   }
 
