@@ -151,6 +151,17 @@ function getUserCtx() {
     if (el) el.textContent = text;
   }
 
+  function formatTrialEndDate(value) {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    return date.toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric"
+    });
+  }
+
 
   // NEW: Softr record id helper for X-User-Id header
   function getSoftrId() {
@@ -298,7 +309,14 @@ card.appendChild(line("Current Plan", `<span id="billing-current-plan">${plan_di
 
     // STATUS
     const planStatus = data?.plan_status || data?.planStatus || data?.status || "";
-    if (planStatus) setTextById("billing-status-value", String(planStatus));
+    const rawTrialEnd = data?.pro_trial_end_at || u?.pro_trial_end_at || "";
+    const normalizedStatus = String(planStatus || "").trim().toLowerCase();
+    const trialEndDate = formatTrialEndDate(rawTrialEnd);
+    if (normalizedStatus === "trial" && trialEndDate) {
+      setTextById("billing-status-value", `Trial Expires ${trialEndDate}`);
+    } else if (planStatus) {
+      setTextById("billing-status-value", String(planStatus));
+    }
 
     // PLAN (force dot style, Name • Type)
     const fetchedName = (data?.plan_name || data?.planName || data?.plan || "").toString().trim();
