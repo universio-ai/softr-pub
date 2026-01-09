@@ -544,23 +544,26 @@
           e.stopImmediatePropagation();
           if (btn.disabled) return;
 
+          const currentPlanState = getPlanState();
+          const currentOnProTrial = isTrialActive(currentPlanState);
+          const currentLockedIn = currentPlanState.pro_trial_locked_in;
           const currentLabel = normalizeLabel(btn.textContent || "");
           btn.disabled = true;
           btn.setAttribute("aria-busy", "true");
           try {
-            if (planState.plan_code === "pro_trial" && isProCard) {
-              if (planState.pro_trial_locked_in) return;
+            if (currentPlanState.plan_code === "pro_trial" && isProCard) {
+              if (currentLockedIn) return;
               await startLockInProTrial({ cycle: billingCycle });
               return;
             }
             if (currentLabel === "LOCK IN PRO PLAN") {
-              if (planState.pro_trial_locked_in) return;
+              if (currentLockedIn) return;
               await startLockInProTrial({ cycle: billingCycle });
               return;
             }
             if (isProCard) {
-              if (onProTrial) {
-                if (planState.pro_trial_locked_in) return;
+              if (currentOnProTrial) {
+                if (currentLockedIn) return;
                 await startLockInProTrial({ cycle: billingCycle });
                 return;
               }
@@ -570,6 +573,11 @@
             }
 
             if (canonical === "pro_trial") {
+              if (currentOnProTrial) {
+                if (currentLockedIn) return;
+                await startLockInProTrial({ cycle: billingCycle });
+                return;
+              }
               await startProTrial();
               return;
             }
