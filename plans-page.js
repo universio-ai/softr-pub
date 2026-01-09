@@ -75,9 +75,11 @@
   // ---------- Current plan ----------
   function getPlanState() {
     const u = window.logged_in_user || {};
+    const profile = window.__U?.profile || {};
 
     const plan_code = normalizePlanCode(
       u.plan_code ||
+      profile.plan_code ||
       u.billing_plan_code ||
       ""
     );
@@ -85,6 +87,7 @@
 
     const plan_status = (
       u.plan_status ||
+      profile.plan_status ||
       u.billing_status ||
       ""
     ).toString();
@@ -95,15 +98,15 @@
         plan_code,
         plan_tier,
         plan_status,
-        pro_trial_end_at: u.pro_trial_end_at || null,
-        pro_trial_used: coerceBoolean(u.pro_trial_used),
-        pro_trial_locked_in: coerceBoolean(u.pro_trial_locked_in)
+        pro_trial_end_at: u.pro_trial_end_at || profile.pro_trial_end_at || null,
+        pro_trial_used: coerceBoolean(u.pro_trial_used ?? profile.pro_trial_used),
+        pro_trial_locked_in: coerceBoolean(u.pro_trial_locked_in ?? profile.pro_trial_locked_in)
       };
     }
 
     // Fallback to Stripe plan fields only if plan_code missing
-    const planName = (u.plan_name || u.billing_plan || "").toString();          // "Pro", "Plus", "Basic"
-    const planType = (u.billing_plan_type || "").toString();                    // "Monthly" | "Annual"
+    const planName = (u.plan_name || profile.plan_name || u.billing_plan || "").toString();          // "Pro", "Plus", "Basic"
+    const planType = (u.billing_plan_type || profile.billing_plan_type || "").toString();           // "Monthly" | "Annual"
     const planStatus = (u.plan_status || u.billing_status || "").toString();
     const inferredCycle = normalizeCycle(planType);
 
@@ -113,8 +116,8 @@
         plan_code: "free",
         plan_status: planStatus,
         pro_trial_end_at: null,
-        pro_trial_used: coerceBoolean(u.pro_trial_used),
-        pro_trial_locked_in: coerceBoolean(u.pro_trial_locked_in)
+        pro_trial_used: coerceBoolean(u.pro_trial_used ?? profile.pro_trial_used),
+        pro_trial_locked_in: coerceBoolean(u.pro_trial_locked_in ?? profile.pro_trial_locked_in)
       };
     }
 
@@ -131,8 +134,8 @@
       plan_tier: inferredTier,
       plan_status: planStatus,
       pro_trial_end_at: null,
-      pro_trial_used: coerceBoolean(u.pro_trial_used),
-      pro_trial_locked_in: coerceBoolean(u.pro_trial_locked_in)
+      pro_trial_used: coerceBoolean(u.pro_trial_used ?? profile.pro_trial_used),
+      pro_trial_locked_in: coerceBoolean(u.pro_trial_locked_in ?? profile.pro_trial_locked_in)
     };
   }
 
