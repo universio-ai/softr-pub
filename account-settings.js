@@ -124,7 +124,7 @@ function getUserCtx() {
   // Flip to "Name • Type" (e.g., "Basic • Annual")
   const plan_display = (planName && planType)
     ? `${planName} • ${planType}`
-    : (planName || "Sampler");
+    : (planName || "Free");
 
   const status = u.billing_status || "—";
 

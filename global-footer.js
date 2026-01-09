@@ -412,12 +412,13 @@ window.addEventListener("@softr/page-content-loaded", () => {
 <script>
 function normalizeTier(value){
   const s = (value || '').toString().trim().toLowerCase();
-  if (s.includes('sampler')) return 'sampler';
+  if (s.includes('trial')) return 'pro';
+  if (s.includes('free')) return 'free';
   if (s.includes('pro')) return 'pro';
   if (s.includes('plus')) return 'plus';
   if (s.includes('basic')) return 'basic';
-  if (['basic','plus','pro','sampler'].includes(s)) return s;
-  return 'sampler';
+  if (['basic','plus','pro','free'].includes(s)) return s;
+  return 'free';
 }
 
 function resolveTierSignals() {
@@ -433,7 +434,7 @@ function resolveTierSignals() {
   const tierSource = signals.softr_plan_code || signals.softr_plan_name || '';
   const tier = normalizeTier(tierSource);
 
-  return { tier, signals: { ...signals, tier_source: tierSource || 'sampler (default)' } };
+  return { tier, signals: { ...signals, tier_source: tierSource || 'free (default)' } };
 }
 
 (function () {
@@ -497,11 +498,13 @@ function getCourseId(){
 
 function normalizeTier(value){
   const s = (value || '').toString().trim().toLowerCase();
+  if (s.includes('trial')) return 'pro';
   if (s.includes('pro')) return 'pro';
   if (s.includes('plus')) return 'plus';
   if (s.includes('basic')) return 'basic';
-  if (['basic','plus','pro','sampler'].includes(s)) return s;
-  return 'sampler';
+  if (s.includes('free')) return 'free';
+  if (['basic','plus','pro','free'].includes(s)) return s;
+  return 'free';
 }
 
 const START_NODE = {
@@ -1228,16 +1231,16 @@ function injectBtn(attempt = 0, maxAttempts = 1) {
     return true;
   }
 
-  const BASE_SAMPLER_ALLOWED = ['C001','C002','C003'];
+  const BASE_FREE_ALLOWED = ['C001','C002','C003'];
   const { tier, signals } = resolveTierSignals();
-  const samplerAllowedRaw = Array.isArray(ent.courses?.sampler_allowed)
-    ? ent.courses.sampler_allowed
-    : BASE_SAMPLER_ALLOWED;
-  const samplerAllowedList = samplerAllowedRaw.length ? samplerAllowedRaw : BASE_SAMPLER_ALLOWED;
-  const samplerAllowed = new Set(
-    samplerAllowedList
+  const freeAllowedRaw = Array.isArray(ent.courses?.free_allowed)
+    ? ent.courses.free_allowed
+    : BASE_FREE_ALLOWED;
+  const freeAllowedList = freeAllowedRaw.length ? freeAllowedRaw : BASE_FREE_ALLOWED;
+  const freeAllowed = new Set(
+    freeAllowedList
       .map(up)
-      .filter((id)=>BASE_SAMPLER_ALLOWED.includes(id))
+      .filter((id)=>BASE_FREE_ALLOWED.includes(id))
   );
   const activeCourses = new Set(ent.courses?.active_courses || []);
   const isActive = activeCourses.has(cid);
@@ -1245,19 +1248,19 @@ function injectBtn(attempt = 0, maxAttempts = 1) {
   const activeRemaining = Number(ent.courses?.active_slots_remaining ?? 0);
   const swapTarget = ent.courses?.will_swap_out || null;
 
-  if (tier === 'sampler' && !samplerAllowed.has(cid)) {
+  if (tier === 'free' && !freeAllowed.has(cid)) {
     setBlockedState(
       btn,
       'Unavailable',
       null,
-      'Sampler includes C001–C003 only. Upgrade to access full courses.'
+      'Free includes C001–C003 only. Upgrade to access full courses.'
     );
     placeBtnWrapper();
-    logDecision({ cid, tier, reason: 'sampler-blocked', signals, samplerAllowed: [...samplerAllowed] });
+    logDecision({ cid, tier, reason: 'free-blocked', signals, freeAllowed: [...freeAllowed] });
     return true;
   }
 
-  if (tier !== 'sampler' && activeSlots > 0 && !isActive && activeRemaining <= 0) {
+  if (tier !== 'free' && activeSlots > 0 && !isActive && activeRemaining <= 0) {
     const message = swapTarget
       ? `You’re at your course limit. Finish or swap out ${swapTarget} to start this course.`
       : 'You’re at your course limit. Finish one course to start another.';
@@ -1281,7 +1284,7 @@ function injectBtn(attempt = 0, maxAttempts = 1) {
     label,
     resumeUrl: startHint.resumeUrl,
     signals,
-    samplerAllowed: [...samplerAllowed],
+    freeAllowed: [...freeAllowed],
     already,
     certEvidence,
   });
@@ -1290,7 +1293,7 @@ function injectBtn(attempt = 0, maxAttempts = 1) {
     completionDetected ||
     already ||
     hasEvidence ||
-    tier === 'sampler' ||
+    tier === 'free' ||
     attempt >= maxAttempts;
 
   if (!settled && window.__UM_DEBUG_CTA && LAST_AWAIT_LOG < 0) {
@@ -1317,7 +1320,7 @@ function injectBtn(attempt = 0, maxAttempts = 1) {
             label: 'Resume',
             resumeUrl: startHint.resumeUrl,
             signals,
-            samplerAllowed: [...samplerAllowed],
+            freeAllowed: [...freeAllowed],
             already: true,
             certEvidence: extra,
           });
@@ -1401,6 +1404,167 @@ function watchAndInject(){
 
 <script>
 (function(){
+  const path = (window.location?.pathname || "").toLowerCase();
+  if (!path.startsWith("/plans")) return;
+  if (window.__umPlansLockInInjected) return; window.__umPlansLockInInjected = true;
+
+  const CHECKOUT_FN = "https://oomcxsfikujptkfsqgzi.supabase.co/functions/v1/create-checkout-session";
+  const BOOTSTRAP_URL = "https://oomcxsfikujptkfsqgzi.supabase.co/functions/v1/user-bootstrap";
+
+  const resolveEmail = () => {
+    const u = window.logged_in_user || (window.Softr?.context?.logged_in_user) || {};
+    const candidates = [u.softr_user_email, u.email, window.__uniUserId];
+    for (const c of candidates) {
+      const s = (c || "").toString().trim();
+      if (s && s.includes("@")) return s.toLowerCase();
+    }
+    return "";
+  };
+
+  async function fetchProfile(email) {
+    const res = await fetch(BOOTSTRAP_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email, probe_plan: false })
+    });
+    const data = await res.json().catch(() => ({}));
+    return data?.profile || null;
+  }
+
+  function pickText(el) {
+    return (el?.innerText || el?.textContent || "").trim();
+  }
+
+  function findProCardCta() {
+    const selectors = [
+      ".pricing-card[data-plan=\"pro\"] .pricing-btn",
+      ".pricing-card[data-plan=\"pro\"] a.pricing-btn",
+      ".pricing-card[data-plan=\"pro\"] button",
+      "[data-plan=\"pro\"] .pricing-btn",
+      "[data-plan-code=\"pro\"] .pricing-btn"
+    ];
+    for (const sel of selectors) {
+      const btn = document.querySelector(sel);
+      if (btn) return btn;
+    }
+    const headings = Array.from(document.querySelectorAll("h1,h2,h3,h4,h5,.plan-title,.pricing-title"));
+    for (const head of headings) {
+      if (pickText(head).toLowerCase() !== "pro") continue;
+      const card = head.closest(".pricing-card,section,div,article") || head.parentElement;
+      if (!card) continue;
+      const btn = card.querySelector(".pricing-btn, a, button");
+      if (btn) return btn;
+    }
+    return null;
+  }
+
+  function detectBillingCycle() {
+    const radios = Array.from(document.querySelectorAll("input[type=\"radio\"],input[type=\"checkbox\"]"));
+    const checked = radios.find((r) => r.checked && /bill|plan|cycle|interval/i.test(r.name || ""));
+    if (checked) {
+      const val = (checked.value || checked.dataset?.value || "").toString().toLowerCase();
+      if (val.startsWith("a") || val.startsWith("y")) return "annual";
+      if (val.startsWith("m")) return "monthly";
+    }
+    const btns = Array.from(document.querySelectorAll("button, .toggle-button, .segmented-control button"));
+    const active = btns.find((b) => {
+      const t = pickText(b).toLowerCase();
+      const pressed = b.getAttribute("aria-pressed") === "true";
+      const activeClass = /\b(active|selected|is-active)\b/i.test(b.className || "");
+      return (pressed || activeClass) && (t.includes("annual") || t.includes("monthly"));
+    });
+    if (active) {
+      const t = pickText(active).toLowerCase();
+      if (t.includes("annual") || t.includes("year")) return "annual";
+      if (t.includes("month")) return "monthly";
+    }
+    return null;
+  }
+
+  function disableCta(btn, label) {
+    btn.setAttribute("aria-disabled", "true");
+    btn.setAttribute("disabled", "true");
+    btn.classList.add("disabled");
+    btn.style.pointerEvents = "none";
+    btn.style.opacity = "0.6";
+    if (label) btn.textContent = label;
+  }
+
+  async function lockInCheckout(email) {
+    const billingCycle = detectBillingCycle();
+    if (!billingCycle) {
+      alert("Unable to determine billing cycle. Please select Monthly or Annual and try again.");
+      return;
+    }
+    const res = await fetch(CHECKOUT_FN, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email,
+        plan_code: "pro",
+        billing_cycle: billingCycle,
+        lock_in_pro_trial: true
+      })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data?.url) {
+      alert(data?.error || "Unable to start checkout. Please try again.");
+      return;
+    }
+    window.location.href = data.url;
+  }
+
+  async function applyLockInState() {
+    const email = resolveEmail();
+    if (!email) return;
+    const profile = await fetchProfile(email);
+    if (!profile) return;
+    const planCode = (profile.plan_code || "").toString().trim().toLowerCase();
+    const lockedIn = Boolean(profile.pro_trial_locked_in);
+    const endAt = Date.parse(profile.pro_trial_end_at || "");
+    const trialActive = Number.isFinite(endAt) && endAt >= Date.now();
+
+    const cta = findProCardCta();
+    if (!cta) return;
+
+    if (planCode === "pro_trial" && trialActive && !lockedIn) {
+      cta.textContent = "LOCK IN PRO PLAN";
+      cta.classList.add("sw-btn--primary");
+      if (!cta.dataset.lockInBound) {
+        cta.dataset.lockInBound = "1";
+        cta.addEventListener("click", (e) => {
+        e.preventDefault();
+        lockInCheckout(email);
+        });
+      }
+      return;
+    }
+    if (planCode === "pro_trial" && lockedIn) {
+      disableCta(cta, "LOCKED IN");
+      return;
+    }
+    if (planCode === "pro") {
+      disableCta(cta, "CURRENT");
+      return;
+    }
+    cta.textContent = "GO PRO";
+  }
+
+  function boot() {
+    applyLockInState();
+  }
+
+  const observer = new MutationObserver(() => applyLockInState());
+  observer.observe(document.body, { childList: true, subtree: true });
+  document.addEventListener("DOMContentLoaded", boot);
+  window.addEventListener("@softr/page-content-loaded", boot);
+})();
+</script>
+
+
+
+<script>
+(function(){
   if (window.__umModuleGateInjected) return; window.__umModuleGateInjected = true;
 
   function up(x){ return (x||"").toString().trim().toUpperCase(); }
@@ -1438,25 +1602,25 @@ function watchAndInject(){
 
   function gate(){
     const U = window.__U||{}; const ent = U.entitlements; if (!ent) return;
-    const FALLBACK_SAMPLER_ALLOWED = ['C001','C002','C003'];
+    const FALLBACK_FREE_ALLOWED = ['C001','C002','C003'];
     const { tier, signals } = resolveTierSignals();
-    if (tier !== 'sampler') return;
+    if (tier !== 'free') return;
 
     const cid = courseId(); if (!cid) return;
-    const samplerAllowedRaw = Array.isArray(ent.courses?.sampler_allowed)
-      ? ent.courses.sampler_allowed
-      : FALLBACK_SAMPLER_ALLOWED;
-    const samplerAllowedList = samplerAllowedRaw.length ? samplerAllowedRaw : FALLBACK_SAMPLER_ALLOWED;
+    const freeAllowedRaw = Array.isArray(ent.courses?.free_allowed)
+      ? ent.courses.free_allowed
+      : FALLBACK_FREE_ALLOWED;
+    const freeAllowedList = freeAllowedRaw.length ? freeAllowedRaw : FALLBACK_FREE_ALLOWED;
     const allowed = new Set(
-      samplerAllowedList
+      freeAllowedList
         .map(up)
-        .filter((id)=>FALLBACK_SAMPLER_ALLOWED.includes(id))
+        .filter((id)=>FALLBACK_FREE_ALLOWED.includes(id))
     );
     if (!allowed.has(cid)) {
-      console.debug('[UM] Module gate decision', { cid, tier, reason: 'sampler-blocked', signals, allowed: [...allowed] });
-      lock(`Sampler includes C001–C003 only. <code>${cid}</code> is a non-sampler course.`); return; }
+      console.debug('[UM] Module gate decision', { cid, tier, reason: 'free-blocked', signals, allowed: [...allowed] });
+      lock(`Free includes C001–C003 only. <code>${cid}</code> is a non-free course.`); return; }
 
-    const limit = +ent.courses?.sampler_module_limit || 3;
+    const limit = +ent.courses?.free_module_limit || 3;
     const idx = nodeIndex(); if (idx == null) return;
     if (idx > limit) {
       console.debug('[UM] Module gate decision', { cid, tier, reason: 'module-limit', limit, idx, signals });
