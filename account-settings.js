@@ -280,7 +280,15 @@ card.appendChild(line("Current Plan", `<span id="billing-current-plan">${plan_di
     const ctx = getUserCtx();
     if (ctx.plan_status) {
       const el = document.getElementById("billing-status-value");
-      if (el) el.textContent = String(ctx.plan_status);
+      const normalizedStatus = String(ctx.plan_status || "").trim().toLowerCase();
+      const trialEndDate = formatTrialEndDate(ctx.pro_trial_end_at);
+      if (el) {
+        if (normalizedStatus === "trial" && trialEndDate) {
+          el.textContent = `Trial Expires ${trialEndDate}`;
+        } else {
+          el.textContent = String(ctx.plan_status);
+        }
+      }
     }
 
 
@@ -309,7 +317,7 @@ card.appendChild(line("Current Plan", `<span id="billing-current-plan">${plan_di
 
     // STATUS
     const planStatus = data?.plan_status || data?.planStatus || data?.status || "";
-    const rawTrialEnd = data?.pro_trial_end_at || u?.pro_trial_end_at || "";
+    const rawTrialEnd = data?.pro_trial_end_at || ctx?.pro_trial_end_at || "";
     const normalizedStatus = String(planStatus || "").trim().toLowerCase();
     const trialEndDate = formatTrialEndDate(rawTrialEnd);
     if (normalizedStatus === "trial" && trialEndDate) {
