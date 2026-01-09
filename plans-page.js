@@ -45,11 +45,31 @@
   function normalizePlanCode(rawCode) {
     const normalized = String(rawCode || "").trim().toLowerCase();
     if (!normalized) return "";
+    return normalized.replace(/\s+/g, "_");
+  }
+
+  function normalizePlanTier(planCode) {
+    const normalized = String(planCode || "").trim().toLowerCase();
+    if (!normalized) return "";
     if (normalized === "pro_trial") return "pro_trial";
     if (normalized.endsWith("_monthly") || normalized.endsWith("_annual")) {
       return normalized.replace(/_(monthly|annual)$/, "");
     }
     return normalized;
+  }
+
+  function normalizeCycle(value) {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (normalized.startsWith("month")) return "monthly";
+    if (normalized.startsWith("year") || normalized.startsWith("annual")) return "annual";
+    return billingCycle;
+  }
+
+  function resolveTierPlanCode(tier, cycle) {
+    if (!tier) return "";
+    if (tier === "pro_trial") return "pro_trial";
+    if (tier === "free") return "free";
+    return cycle ? `${tier}_${cycle}` : tier;
   }
 
   // ---------- Current plan ----------
@@ -61,6 +81,7 @@
       u.billing_plan_code ||
       ""
     );
+    const plan_tier = normalizePlanTier(plan_code) || "free";
 
     const plan_status = (
       u.plan_status ||
