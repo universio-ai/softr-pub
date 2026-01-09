@@ -145,6 +145,18 @@
     return isActivePlanStatus(planState.plan_status);
   }
 
+  function isTrialWindow(planState) {
+    if (planState.plan_code === "pro_trial") return true;
+    if (isActivePlanStatus(planState.plan_status) && String(planState.plan_status || "").toLowerCase() === "trial") {
+      return true;
+    }
+    if (planState.pro_trial_end_at) {
+      const endAt = Date.parse(planState.pro_trial_end_at);
+      if (Number.isFinite(endAt) && endAt >= Date.now()) return true;
+    }
+    return false;
+  }
+
   // ---------- Utils ----------
   function getIdentity() {
     const u = window.logged_in_user || {};
@@ -549,6 +561,7 @@
 
           const currentPlanState = getPlanState();
           const currentOnProTrial = isTrialActive(currentPlanState);
+          const currentInTrialWindow = isTrialWindow(currentPlanState);
           const currentLockedIn = currentPlanState.pro_trial_locked_in;
           const currentLabel = normalizeLabel(btn.textContent || "");
           btn.disabled = true;
@@ -565,7 +578,7 @@
               return;
             }
             if (isProCard) {
-              if (currentOnProTrial) {
+              if (currentOnProTrial || currentInTrialWindow) {
                 if (currentLockedIn) return;
                 await startLockInProTrial({ cycle: billingCycle });
                 return;
@@ -576,7 +589,7 @@
             }
 
             if (canonical === "pro_trial") {
-              if (currentOnProTrial) {
+              if (currentOnProTrial || currentInTrialWindow) {
                 if (currentLockedIn) return;
                 await startLockInProTrial({ cycle: billingCycle });
                 return;
