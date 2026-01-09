@@ -553,6 +553,11 @@
               await startLockInProTrial({ cycle: billingCycle });
               return;
             }
+            if (canonical === "pro_trial" && planState.plan_code === "pro_trial") {
+              if (planState.pro_trial_locked_in) return;
+              await startLockInProTrial({ cycle: billingCycle });
+              return;
+            }
             if (isProCard) {
               if (onProTrial) {
                 if (planState.pro_trial_locked_in) return;
