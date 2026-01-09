@@ -114,12 +114,13 @@ function resolveEmail() {
 
 function getUserCtx() {
   const u = window.logged_in_user || (window.Softr?.context?.logged_in_user) || {};
+  const profile = window.__U?.profile || {};
   const email = resolveEmail();
   const name  = u.softr_user_full_name || u.full_name || u.name || "";
 
   // Prefer explicit fields; DO NOT seed from u.billing_plan (it may contain old "(Type)" formatting)
-  const planName = u.plan_name || u.plan || "";
-  const planType = u.billing_plan_type || u.plan_type || "";
+  const planName = u.plan_name || profile.plan_name || u.plan || "";
+  const planType = u.billing_plan_type || profile.billing_plan_type || u.plan_type || "";
 
   // Flip to "Name • Type" (e.g., "Basic • Annual")
   const plan_display = (planName && planType)
@@ -137,9 +138,10 @@ function getUserCtx() {
   const tone = normalize(u.pref_tone);
   const pace = normalize(u.pref_pace);
 
-  const plan_status = u.plan_status || "";
+  const plan_status = u.plan_status || profile.plan_status || "";
+  const pro_trial_end_at = u.pro_trial_end_at || profile.pro_trial_end_at || "";
 
-  return { email, name, plan_display, status, tone, pace, plan_status };
+  return { email, name, plan_display, status, tone, pace, plan_status, pro_trial_end_at };
 }
 
 
