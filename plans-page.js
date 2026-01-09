@@ -42,6 +42,31 @@
     return normalized === "active" || normalized === "trial" || normalized === "trialing";
   }
 
+  function normalizePlanTier(rawCode) {
+    const normalized = String(rawCode || "").trim().toLowerCase();
+    if (!normalized) return "";
+    if (normalized === "pro_trial") return "pro_trial";
+    if (normalized.endsWith("_monthly") || normalized.endsWith("_annual")) {
+      return normalized.replace(/_(monthly|annual)$/, "");
+    }
+    return normalized;
+  }
+
+  function normalizeCycle(rawCycle) {
+    const normalized = String(rawCycle || "").trim().toLowerCase();
+    if (!normalized) return "";
+    if (normalized.startsWith("m")) return "monthly";
+    if (normalized.startsWith("a") || normalized.startsWith("y")) return "annual";
+    return "";
+  }
+
+  function resolveTierPlanCode(tier, cycle) {
+    if (!tier || tier === "free") return "free";
+    if (tier === "pro_trial") return "pro_trial";
+    if (!cycle) return `${tier}_annual`;
+    return `${tier}_${cycle}`;
+  }
+
   // ---------- Current plan ----------
   function getPlanState() {
     const u = window.logged_in_user || {};
@@ -50,7 +75,8 @@
       u.plan_code ||
       u.billing_plan_code ||
       ""
-    ).toString().toLowerCase();
+    );
+    const plan_tier = normalizePlanTier(plan_code);
 
     const plan_status = (
       u.plan_status ||
@@ -62,6 +88,7 @@
     if (plan_code) {
       return {
         plan_code,
+        plan_tier,
         plan_status,
         pro_trial_end_at: u.pro_trial_end_at || null,
         pro_trial_used: coerceBoolean(u.pro_trial_used),
@@ -73,6 +100,7 @@
     const planName = (u.plan_name || u.billing_plan || "").toString();          // "Pro", "Plus", "Basic"
     const planType = (u.billing_plan_type || "").toString();                    // "Monthly" | "Annual"
     const planStatus = (u.plan_status || u.billing_status || "").toString();
+    const inferredCycle = normalizeCycle(planType);
 
     const isActive = isActivePlanStatus(planStatus);
     if (!planName || !isActive) {
@@ -86,17 +114,16 @@
     }
 
     const normalizedName = planName.trim().toLowerCase();
-    const inferred =
+    const inferredTier =
       normalizedName.includes("trial") ? "pro_trial" :
       normalizedName.includes("pro") ? "pro" :
       normalizedName.includes("plus") ? "plus" :
       normalizedName.includes("basic") || normalizedName.includes("upgrade") ? "basic" :
       "free";
 
-    void planType;
-
     return {
-      plan_code: inferred,
+      plan_code: resolveTierPlanCode(inferredTier, inferredTier === "pro_trial" ? "" : inferredCycle),
+      plan_tier: inferredTier,
       plan_status: planStatus,
       pro_trial_end_at: null,
       pro_trial_used: coerceBoolean(u.pro_trial_used),
@@ -171,7 +198,8 @@
         return;
       }
 
-      const priceId = PRICE_IDS[plan_code]?.[cycle];
+      const planTier = normalizePlanTier(plan_code);
+      const priceId = PRICE_IDS[planTier]?.[cycle];
       if (!priceId) {
         console.error("[plans] Unknown plan/cycle:", plan_code, cycle);
         alert("Sorry, we couldn't determine the correct price. Please refresh and try again.");
@@ -242,9 +270,15 @@
       };
       if (id.session) headers["X-Softr-Session"] = id.session;
 
+      const priceId = PRICE_IDS.pro?.[cycle];
+      if (!priceId) {
+        console.error("[plans] Unknown pro cycle:", cycle);
+        alert("Sorry, we couldn't determine the correct price. Please refresh and try again.");
+        return;
+      }
+
       const body = JSON.stringify({
-        plan_code: "pro",
-        billing_cycle: cycle,
+        price_id: priceId,
         lock_in_pro_trial: true,
         success_url: window.location.origin + "/dashboard",
         cancel_url: window.location.origin + "/plans"
@@ -350,14 +384,15 @@
   function wirePlanButtons() {
     const planState = getPlanState();
     const plan_code = planState.plan_code || "free";
+    const plan_tier = planState.plan_tier || normalizePlanTier(plan_code) || "free";
     const trialActive = isTrialActive(planState);
 
     const isLoggedIn = !!getIdentity().email;
 
-    const onPro = plan_code === "pro";
-    const onPlus = plan_code === "plus";
-    const onBasic = plan_code === "basic";
-    const onFree = plan_code === "free";
+    const onPro = plan_tier === "pro";
+    const onPlus = plan_tier === "plus";
+    const onBasic = plan_tier === "basic";
+    const onFree = plan_tier === "free";
     const onProTrial = plan_code === "pro_trial" && trialActive;
 
     const buttons = document.querySelectorAll(".pricing-btn");
@@ -512,7 +547,7 @@
                 return;
               }
 
-              await startCheckout({ plan_code: "pro", cycle: billingCycle });
+              await startCheckout({ plan_code: `pro_${billingCycle}`, cycle: billingCycle });
               return;
             }
 
