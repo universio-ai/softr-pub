@@ -26,6 +26,17 @@
   // Keep track of buttons we've already wired
   const wiredButtons = new WeakSet();
 
+  function coerceBoolean(value) {
+    if (typeof value === "boolean") return value;
+    if (typeof value === "string") {
+      const normalized = value.trim().toLowerCase();
+      if (normalized === "true") return true;
+      if (normalized === "false") return false;
+    }
+    if (typeof value === "number") return value === 1;
+    return false;
+  }
+
   function isActivePlanStatus(value) {
     const normalized = String(value || "").trim().toLowerCase();
     return normalized === "active" || normalized === "trial" || normalized === "trialing";
@@ -53,8 +64,8 @@
         plan_code,
         plan_status,
         pro_trial_end_at: u.pro_trial_end_at || null,
-        pro_trial_used: !!u.pro_trial_used,
-        pro_trial_locked_in: !!u.pro_trial_locked_in
+        pro_trial_used: coerceBoolean(u.pro_trial_used),
+        pro_trial_locked_in: coerceBoolean(u.pro_trial_locked_in)
       };
     }
 
@@ -69,8 +80,8 @@
         plan_code: "free",
         plan_status: planStatus,
         pro_trial_end_at: null,
-        pro_trial_used: !!u.pro_trial_used,
-        pro_trial_locked_in: !!u.pro_trial_locked_in
+        pro_trial_used: coerceBoolean(u.pro_trial_used),
+        pro_trial_locked_in: coerceBoolean(u.pro_trial_locked_in)
       };
     }
 
@@ -88,8 +99,8 @@
       plan_code: inferred,
       plan_status: planStatus,
       pro_trial_end_at: null,
-      pro_trial_used: !!u.pro_trial_used,
-      pro_trial_locked_in: !!u.pro_trial_locked_in
+      pro_trial_used: coerceBoolean(u.pro_trial_used),
+      pro_trial_locked_in: coerceBoolean(u.pro_trial_locked_in)
     };
   }
 
