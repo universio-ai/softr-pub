@@ -172,7 +172,9 @@
     "GO PLUS": "plus",
     "PRO": "pro",
     "GO PRO": "pro",
-    "START PRO TRIAL": "pro_trial"
+    "START PRO TRIAL": "pro_trial",
+    "LOCK IN PRO PLAN": "pro",
+    "LOCKED IN": "pro"
   };
 
   function canonicalPlanCode(labelText) {
@@ -542,9 +544,15 @@
           e.stopImmediatePropagation();
           if (btn.disabled) return;
 
+          const currentLabel = normalizeLabel(btn.textContent || "");
           btn.disabled = true;
           btn.setAttribute("aria-busy", "true");
           try {
+            if (currentLabel === "LOCK IN PRO PLAN") {
+              if (planState.pro_trial_locked_in) return;
+              await startLockInProTrial({ cycle: billingCycle });
+              return;
+            }
             if (isProCard) {
               if (onProTrial) {
                 if (planState.pro_trial_locked_in) return;
