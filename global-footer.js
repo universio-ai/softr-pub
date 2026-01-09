@@ -1,5 +1,6 @@
 <script>
 // THIS MAKES THE AVATAR ICON BLACK
+// Plans page CTA logic is handled in softr/plans-page.js to avoid duplicate wiring.
 (function () {
   const BRAND_BLACK = "#000000";
 
