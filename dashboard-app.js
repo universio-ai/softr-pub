@@ -220,7 +220,10 @@ function pickVariant(list){
 }
 function bubbleize(h,variant){
   if(!h||h.dataset.umBubbled==='1'||h.querySelector('.uni-bubble'))return;
-  const t=variant||(h.textContent||'').trim();
+  const stored=h.dataset.umVariant||'';
+  const selected=stored||variant||(h.textContent||'').trim();
+  if(!stored && selected) h.dataset.umVariant=selected;
+  const t=selected;
   if(!t)return;
   const s=document.createElement('span');
   s.className='uni-bubble tutor um-section um-fade-in';
@@ -268,6 +271,12 @@ function getFirstName(){
 function pickRotation(list, fallback){
   if(!Array.isArray(list)||!list.length) return fallback||'';
   return list[Math.floor(Math.random()*list.length)];
+}
+function pickRotationIndex(list, stored){
+  if(!Array.isArray(list)||!list.length) return -1;
+  const idx=Number(stored);
+  if(Number.isInteger(idx) && idx>=0 && idx<list.length) return idx;
+  return Math.floor(Math.random()*list.length);
 }
 function normalizePlanCode(raw){
   const normalized=String(raw||'').trim().toLowerCase();
@@ -323,12 +332,15 @@ function ensureHello(){
   hello=document.createElement('div');
   hello.className='uni-bubble tutor um-section um-dash-hello';
   const name=getFirstName();
-  hello.textContent=pickRotation([
+  const stored=hello.dataset.umVariant;
+  const chosen=stored||pickRotation([
     `Hello again, ${name} 👋`,
     `Hi again, ${name} 👋`,
     `Hey, ${name} 👋`,
     `Hi there, ${name} 👋`
   ],`Hello again, ${name} 👋`);
+  if(!stored) hello.dataset.umVariant=chosen;
+  hello.textContent=chosen;
   hello.style.margin='0 0 12px 0';
   hello.style.transition='opacity .4s ease, visibility 0s linear .05s';
   hello.style.opacity='0';
@@ -387,12 +399,15 @@ function placeTrial(h){
   const e=ensureTrial();
   const days=status.daysLeft;
   const plural=days===1?'day':'days';
-  const text=pickRotation([
+  const variants=[
     `Just letting you know, you have ${days} ${plural} left on your Pro Trial.`,
     `Reminder – you have ${days} ${plural} left on your Pro Trial.`,
     `Just a heads up, you have ${days} left on your Pro Trial.`,
     `I wanted to remind you – you have ${days} ${plural} remaining on your Pro Trial.`
-  ],`Just letting you know, you have ${days} ${plural} left on your Pro Trial.`);
+  ];
+  const variantIndex=pickRotationIndex(variants,e.dataset.umVariantIndex);
+  const text=variants[variantIndex]||`Just letting you know, you have ${days} ${plural} left on your Pro Trial.`;
+  if(!Number.isFinite(Number(e.dataset.umVariantIndex))) e.dataset.umVariantIndex=String(variantIndex);
   if(e.textContent!==text) e.textContent=text;
   if(e.parentNode!==h.parentNode||e.nextSibling!==h){
     h.parentNode.insertBefore(e,h);
