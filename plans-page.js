@@ -2,6 +2,7 @@
 (() => {
   // ---------- Config ----------
   const BFF_BASE = "https://oomcxsfikujptkfsqgzi.supabase.co/functions/v1";
+  const PLANS_SCRIPT_VERSION = "2025-03-06";
 
   // Stripe Price IDs (test mode) — keys are canonical plan_code
   const PRICE_IDS = {
@@ -723,6 +724,10 @@
   async function init() {
     if (initialized) return;
     initialized = true;
+    debugLog("[plans] script loaded", {
+      version: PLANS_SCRIPT_VERSION,
+      href: window.location.href
+    });
     wireBillingToggle();
     await ensureProfileHydrated();
     wirePlanButtons();
