@@ -253,7 +253,17 @@ window.__umHelloBubbleInstalled = true;
 
 const GRID_IDS = ['grid1','grid2','grid3','grid4','grid5'];
 const MIN_VISIBLE_PX = 16;           // smaller threshold = more tolerant
-let hello = null, trial = null, host = null, retryCount = 0, maxRetries = 60, hydrated = false;
+const EXPLORE_VARIANTS = [
+  "If you’d like to start something else, Explore shows all microcourses and certificates.",
+  "You can find all available microcourses and certificates under Explore.",
+  "Looking for another place to begin? Explore includes all microcourses and certificates.",
+  "Explore is where you can browse all microcourses and certificates."
+];
+const EXPLORE_SUPPRESS_KEY = 'um.dashboard.explore.suppressed';
+const EXPLORE_VARIANT_KEY = 'um.dashboard.explore.variant';
+const EXPLORE_PENDING_KEY = 'um.dashboard.explore.pending';
+const DAY_MS = 24 * 60 * 60 * 1000;
+let hello = null, trial = null, explore = null, host = null, retryCount = 0, maxRetries = 60, hydrated = false;
 let gridObserver = null, pendingCheck = null;
 
 function toFirst(s){return String(s||'').trim().split(/\s+/)[0]||'';}
@@ -267,6 +277,135 @@ function getFirstName(){
     const u = window.logged_in_user || window.Softr?.currentUser || window.__U?.profile || {};
     return toFirst(u.softr_user_full_name) || fromEmailPrefix(u.softr_user_email || u.email) || 'there';
   }catch{return 'there';}
+}
+function getUserContext(){
+  return window.logged_in_user || window.Softr?.currentUser || window.__U?.profile || window.user || window.__USER || {};
+}
+function getUserEmail(){
+  const u = getUserContext();
+  const email = u.email || u.softr_user_email || u.primary_email || window.__U?.current_email || null;
+  return typeof email === 'string' ? email.trim().toLowerCase() : null;
+}
+function safeParseDate(value){
+  if(!value) return null;
+  const ts = Date.parse(value);
+  return Number.isFinite(ts) ? ts : null;
+}
+function resolveAccountAgeMs(){
+  const profile = window.__U?.dashboard_profile || {};
+  const explicitAge = Number(profile.account_age_days ?? profile.accountAgeDays);
+  if(Number.isFinite(explicitAge) && explicitAge >= 0) return explicitAge * DAY_MS;
+  const user = getUserContext();
+  const candidates = [
+    profile.profile_created_at,
+    profile.created_at,
+    profile.signup_at,
+    profile.signed_up_at,
+    profile.createdAt,
+    user.created_at,
+    user.createdAt,
+    user.signup_at,
+    user.signupAt,
+    user.signed_up_at,
+    user.softr_user_created_at,
+    user.created_on,
+    user.created
+  ];
+  for(const candidate of candidates){
+    const ts = safeParseDate(candidate);
+    if(ts != null) return Math.max(0, Date.now() - ts);
+  }
+  return null;
+}
+function resolveHasStartedLesson(){
+  const profile = window.__U?.dashboard_profile || {};
+  const direct = profile.has_started_lesson;
+  if(typeof direct === 'boolean') return direct;
+  const inProgress = Number(profile.in_progress_count ?? 0);
+  const completed = Number(profile.completed_count ?? 0);
+  const completedNodes = Number(profile.completed_node_count ?? 0);
+  const hasCompletedNode = Boolean(profile.has_completed_node);
+  return inProgress > 0 || completed > 0 || completedNodes > 0 || hasCompletedNode;
+}
+function storageKey(base, email){
+  if(!email) return null;
+  return `${base}.${email.toLowerCase()}`;
+}
+function readLocalFlag(base, email){
+  const key = storageKey(base, email);
+  if(!key) return false;
+  try{ return !!localStorage.getItem(key); }catch{ return false; }
+}
+function writeLocalFlag(base, email, payload){
+  const key = storageKey(base, email);
+  if(!key) return false;
+  try{
+    localStorage.setItem(key, JSON.stringify(payload || { ts: Date.now() }));
+    return true;
+  }catch{ return false; }
+}
+function writePendingSuppression(reason){
+  try{ sessionStorage.setItem(EXPLORE_PENDING_KEY, JSON.stringify({ reason, ts: Date.now() })); }catch{}
+}
+function applyPendingSuppression(email){
+  if(!email) return;
+  let pending = null;
+  try{ pending = JSON.parse(sessionStorage.getItem(EXPLORE_PENDING_KEY) || 'null'); }catch{}
+  if(!pending) return;
+  writeLocalFlag(EXPLORE_SUPPRESS_KEY, email, pending);
+  try{ sessionStorage.removeItem(EXPLORE_PENDING_KEY); }catch{}
+}
+function suppressExplore(reason){
+  const email = getUserEmail();
+  if(!email){
+    writePendingSuppression(reason);
+    return;
+  }
+  writeLocalFlag(EXPLORE_SUPPRESS_KEY, email, { reason, ts: Date.now() });
+  if(explore?.parentNode) explore.parentNode.removeChild(explore);
+}
+function pickExploreVariant(email){
+  if(!EXPLORE_VARIANTS.length) return '';
+  const key = storageKey(EXPLORE_VARIANT_KEY, email) || EXPLORE_VARIANT_KEY;
+  let stored = null;
+  try{ stored = sessionStorage.getItem(key); }catch{}
+  const idx = Number(stored);
+  if(Number.isInteger(idx) && idx >= 0 && idx < EXPLORE_VARIANTS.length){
+    return EXPLORE_VARIANTS[idx];
+  }
+  const picked = Math.floor(Math.random() * EXPLORE_VARIANTS.length);
+  try{ sessionStorage.setItem(key, String(picked)); }catch{}
+  return EXPLORE_VARIANTS[picked];
+}
+function shouldShowExplore(){
+  const email = getUserEmail();
+  if(email) applyPendingSuppression(email);
+  if(!email) return false;
+  if(readLocalFlag(EXPLORE_SUPPRESS_KEY, email)) return false;
+  if(!resolveHasStartedLesson()) return false;
+  const ageMs = resolveAccountAgeMs();
+  if(ageMs == null) return false;
+  return ageMs <= 7 * DAY_MS;
+}
+let exploreClickWatcherInstalled=false;
+function isExploreMenuItem(target){
+  if(!target) return false;
+  const el = target.closest('a,button,[role="menuitem"],[role="link"]');
+  if(!el) return false;
+  const label = (el.textContent || '').trim();
+  const aria = (el.getAttribute('aria-label') || '').trim();
+  const href = (el.getAttribute('href') || '').trim();
+  const labelMatch = /^explore$/i.test(label) || /^explore$/i.test(aria);
+  const hrefMatch = /\/explore\b/i.test(href) || /[?&]explore\b/i.test(href);
+  return labelMatch || hrefMatch;
+}
+function installExploreClickWatcher(){
+  if(exploreClickWatcherInstalled) return;
+  exploreClickWatcherInstalled=true;
+  document.addEventListener('click',(event)=>{
+    if(!isExploreMenuItem(event.target)) return;
+    suppressExplore('explore_clicked');
+  },{capture:true});
 }
 function pickRotation(list, fallback){
   if(!Array.isArray(list)||!list.length) return fallback||'';
@@ -357,6 +496,17 @@ function ensureTrial(){
   trial.style.visibility='hidden';
   return trial;
 }
+function ensureExplore(){
+  if(explore) return explore;
+  explore=document.createElement('div');
+  explore.className='uni-bubble tutor um-section um-dash-explore';
+  explore.style.margin='0 0 12px 0';
+  explore.style.transition='opacity .4s ease, visibility 0s linear .05s';
+  explore.style.opacity='0';
+  explore.style.visibility='hidden';
+  explore.addEventListener('click',()=>suppressExplore('dismissed'));
+  return explore;
+}
 
 function revealHello(){
   if(!hello||hydrated) return;
@@ -369,6 +519,11 @@ function revealTrial(){
   trial.style.visibility='visible';
   requestAnimationFrame(()=>{trial.style.opacity='1';});
 }
+function revealExplore(){
+  if(!explore) return;
+  explore.style.visibility='visible';
+  requestAnimationFrame(()=>{explore.style.opacity='1';});
+}
 function placeHello(g){
   if(!g) return false;
   const h=findHeading(g);
@@ -378,6 +533,7 @@ function placeHello(g){
     h.parentNode.insertBefore(e,h);
   }
   placeTrial(h);
+  placeExplore(h);
   host=g;
   revealHello();
   return true;
@@ -414,13 +570,33 @@ function placeTrial(h){
   }
   revealTrial();
 }
+function placeExplore(h){
+  if(!h||!h.parentNode) return;
+  if(!shouldShowExplore()){
+    if(explore?.parentNode) explore.parentNode.removeChild(explore);
+    return;
+  }
+  const e = ensureExplore();
+  const email = getUserEmail();
+  const text = pickExploreVariant(email);
+  if(e.textContent !== text) e.textContent = text;
+  const anchor = (trial?.parentNode === h.parentNode) ? trial : hello;
+  const beforeNode = anchor ? anchor.nextSibling || h : h;
+  if(e.parentNode !== h.parentNode || e.previousSibling !== anchor){
+    h.parentNode.insertBefore(e, beforeNode);
+  }
+  revealExplore();
+}
 function refresh(){
   const g=topGrid();
   if(!g){ return; }
   if(g!==host){ placeHello(g); }
   else{
     const h=findHeading(g);
-    if(h) placeTrial(h);
+    if(h){
+      placeTrial(h);
+      placeExplore(h);
+    }
   }
 }
 function tryUntilVisible(){
@@ -455,8 +631,10 @@ function boot(){
   refresh();
   watchGrids();
   tryUntilVisible();
+  installExploreClickWatcher();
   window.addEventListener('scroll',refresh,{passive:true});
   window.addEventListener('resize',refresh,{passive:true});
+  window.addEventListener('um:dashboard-profile',()=>scheduleVisibilityCheck(0));
   // re-inject after Softr refreshes or your gating reruns
   window.addEventListener('@softr/page-content-loaded',()=>{watchGrids(); scheduleVisibilityCheck(60);});
 }
@@ -791,6 +969,19 @@ applyTemp(
             applyFinal(fallbackStates,"Final grid state (error/empty response)",false);
             return;
           }
+
+          const normalizedData = { ...data };
+          const startedLesson =
+            Number(normalizedData.in_progress_count || 0) > 0 ||
+            Number(normalizedData.completed_count || 0) > 0 ||
+            Number(normalizedData.completed_node_count || 0) > 0 ||
+            Boolean(normalizedData.has_completed_node);
+          if(typeof normalizedData.has_started_lesson !== 'boolean'){
+            normalizedData.has_started_lesson = startedLesson;
+          }
+          window.__U = window.__U || {};
+          window.__U.dashboard_profile = normalizedData;
+          window.dispatchEvent(new CustomEvent('um:dashboard-profile', { detail: normalizedData }));
 
           const inProgress        = Number(data.in_progress_count||0);
           const completed         = Number(data.completed_count||0); // legacy fallback
