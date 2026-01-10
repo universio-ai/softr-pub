@@ -402,7 +402,7 @@ function placeTrial(h){
   const variants=[
     `Just letting you know, you have ${days} ${plural} left on your Pro Trial.`,
     `Reminder – you have ${days} ${plural} left on your Pro Trial.`,
-    `Just a heads up, you have ${days} left on your Pro Trial.`,
+    `Just a heads up, you have ${days} ${plural} left on your Pro Trial.`,
     `I wanted to remind you – you have ${days} ${plural} remaining on your Pro Trial.`
   ];
   const variantIndex=pickRotationIndex(variants,e.dataset.umVariantIndex);
