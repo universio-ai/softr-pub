@@ -152,6 +152,13 @@ new MutationObserver(run).observe(document.getElementById('page-content')||docum
  width:fit-content!important;max-width:92vw!important;white-space:nowrap!important;animation:umBubbleIn 420ms ease-out both;
 }
 .um-dash-hello{margin:0 0 10px 0!important;}
+@media (max-width: 768px){
+  .uni-bubble.tutor.um-section,.uni-bubble.tutor.um-dash-hello{
+    align-items:flex-start!important;
+    white-space:normal!important;
+    word-break:break-word!important;
+  }
+}
 [data-um-bubble-freeze="1"] #grid1 h1,[data-um-bubble-freeze="1"] #grid1 h2,[data-um-bubble-freeze="1"] #grid1 h3,[data-um-bubble-freeze="1"] #grid1 h4,
 [data-um-bubble-freeze="1"] #grid2 h1,[data-um-bubble-freeze="1"] #grid2 h2,[data-um-bubble-freeze="1"] #grid2 h3,[data-um-bubble-freeze="1"] #grid2 h4,
 [data-um-bubble-freeze="1"] #grid3 h1,[data-um-bubble-freeze="1"] #grid3 h2,[data-um-bubble-freeze="1"] #grid3 h3,[data-um-bubble-freeze="1"] #grid3 h4,
@@ -190,17 +197,44 @@ document.documentElement.setAttribute(FREEZE_ATTR,'1');
 let thawed=false;
 const thawHeadings=()=>{if(thawed) return; thawed=true; document.documentElement.setAttribute(FREEZE_ATTR,'0');};
 const TARGETS=[
- {blockId:'90235312-fe34-41b7-9e85-30fbe520ad6a',selectors:['#grid1'],textMatch:/Try\s+your\s+first\s+lesson/i},
- {selectors:['#grid2'],textMatch:/(Pick\s*up|Resume)/i},
+ {blockId:'90235312-fe34-41b7-9e85-30fbe520ad6a',selectors:['#grid1'],textMatch:/Try\s+your\s+first\s+lesson/i,variants:[
+   'Ready to try out one of these first lessons?',
+   'Are you ready to try out one of these first lessons?',
+   'All set to try out one of these first lessons?'
+ ]},
+ {selectors:['#grid2'],textMatch:/(Pick\s*up|Resume)/i,variants:[
+   'Ready to pick up where you left off?',
+   'Ready to resume one of these?',
+   'Ready to return to one of these courses?',
+   'All set to pick up from here?'
+ ]},
  {selectors:['#grid3'],textMatch:/Completed 👌/i},
  {selectors:['#grid4'],textMatch:/Certificates/i},
  {selectors:['#grid5'],textMatch:/Microcourse/i}
 ];
 function isVis(e){if(!e)return false;const cs=getComputedStyle(e);if(cs.display==='none'||cs.visibility==='hidden'||+cs.opacity===0)return false;const r=e.getBoundingClientRect();return r.width>0&&r.height>0;}
 function rootsFor(t){const o=[];(t.selectors||[]).forEach(s=>o.push(...document.querySelectorAll(s)));if(t.blockId)o.push(...document.querySelectorAll(`[data-block-id="${t.blockId}"]`));return Array.from(new Set(o));}
-function bubbleize(h){if(!h||h.dataset.umBubbled==='1'||h.querySelector('.uni-bubble'))return;const t=(h.textContent||'').trim();if(!t)return;const s=document.createElement('span');s.className='uni-bubble tutor um-section um-fade-in';s.textContent=t;h.dataset.umBubbled='1';h.textContent='';h.appendChild(s);}
-function within(r,t){const hs=[...r.querySelectorAll('h1,h2,h3,h4')].filter(isVis);const h=hs.find(el=>t.test((el.textContent||'').trim()))||hs[0];if(h)bubbleize(h);}
-function run(){TARGETS.forEach(t=>{rootsFor(t).forEach(r=>within(r,t.textMatch));});thawHeadings();}
+function pickVariant(list){
+  if(!Array.isArray(list)||!list.length) return '';
+  return list[Math.floor(Math.random()*list.length)];
+}
+function bubbleize(h,variant){
+  if(!h||h.dataset.umBubbled==='1'||h.querySelector('.uni-bubble'))return;
+  const t=variant||(h.textContent||'').trim();
+  if(!t)return;
+  const s=document.createElement('span');
+  s.className='uni-bubble tutor um-section um-fade-in';
+  s.textContent=t;
+  h.dataset.umBubbled='1';
+  h.textContent='';
+  h.appendChild(s);
+}
+function within(r,t){
+  const hs=[...r.querySelectorAll('h1,h2,h3,h4')].filter(isVis);
+  const h=hs.find(el=>t.textMatch.test((el.textContent||'').trim()))||hs[0];
+  if(h)bubbleize(h,pickVariant(t.variants));
+}
+function run(){TARGETS.forEach(t=>{rootsFor(t).forEach(r=>within(r,t));});thawHeadings();}
 const start=()=>run();
 (document.readyState!=='loading')?start():document.addEventListener('DOMContentLoaded',start);
 window.addEventListener('@softr/page-content-loaded',start);
@@ -230,6 +264,10 @@ function getFirstName(){
     const u = window.logged_in_user || window.Softr?.currentUser || window.__U?.profile || {};
     return toFirst(u.softr_user_full_name) || fromEmailPrefix(u.softr_user_email || u.email) || 'there';
   }catch{return 'there';}
+}
+function pickRotation(list, fallback){
+  if(!Array.isArray(list)||!list.length) return fallback||'';
+  return list[Math.floor(Math.random()*list.length)];
 }
 function normalizePlanCode(raw){
   const normalized=String(raw||'').trim().toLowerCase();
@@ -284,7 +322,13 @@ function ensureHello(){
   if(hello) return hello;
   hello=document.createElement('div');
   hello.className='uni-bubble tutor um-section um-dash-hello';
-  hello.textContent=`Hello again, ${getFirstName()} 👋`;
+  const name=getFirstName();
+  hello.textContent=pickRotation([
+    `Hello again, ${name} 👋`,
+    `Hi again, ${name} 👋`,
+    `Hey, ${name} 👋`,
+    `Hi there, ${name} 👋`
+  ],`Hello again, ${name} 👋`);
   hello.style.margin='0 0 12px 0';
   hello.style.transition='opacity .4s ease, visibility 0s linear .05s';
   hello.style.opacity='0';
@@ -342,7 +386,13 @@ function placeTrial(h){
   }
   const e=ensureTrial();
   const days=status.daysLeft;
-  const text=`Just letting you know, you have ${days} day${days===1?'':'s'} left on your Pro Trial.`;
+  const plural=days===1?'day':'days';
+  const text=pickRotation([
+    `Just letting you know, you have ${days} ${plural} left on your Pro Trial.`,
+    `Reminder – you have ${days} ${plural} left on your Pro Trial.`,
+    `Just a heads up, you have ${days} left on your Pro Trial.`,
+    `I wanted to remind you – you have ${days} ${plural} remaining on your Pro Trial.`
+  ],`Just letting you know, you have ${days} ${plural} left on your Pro Trial.`);
   if(e.textContent!==text) e.textContent=text;
   if(e.parentNode!==h.parentNode||e.nextSibling!==h){
     h.parentNode.insertBefore(e,h);
