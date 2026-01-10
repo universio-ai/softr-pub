@@ -515,14 +515,19 @@ function ensureExplore(){
   if(explore) return explore;
   explore=document.createElement('div');
   explore.className='uni-bubble tutor um-section um-dash-explore';
+  explore.dataset.umPreinserted='1';
   explore.style.margin='0 0 12px 0';
-  explore.style.transition='opacity .4s ease, visibility 0s linear .05s';
+  explore.style.display='none';
   explore.style.opacity='0';
-  explore.style.visibility='hidden';
+  explore.style.transition='opacity .4s ease';
+
+  // ⬇️ SET TEXT IMMEDIATELY (NO EMPTY STATE)
+  const email = getUserEmail();
+  explore.textContent = pickExploreVariant(email);
+
   explore.addEventListener('click',()=>suppressExplore('dismissed'));
   return explore;
 }
-
 function revealHello(){
   if(!hello||hydrated) return;
   hydrated=true;
@@ -536,19 +541,34 @@ function revealTrial(){
 }
 function revealExplore(){
   if(!explore) return;
-  explore.style.visibility='visible';
-  requestAnimationFrame(()=>{explore.style.opacity='1';});
+  if(explore.style.display==='none'){
+    explore.style.display='inline-flex';
+  }
+  requestAnimationFrame(()=>{
+    explore.style.opacity='1';
+  });
 }
 function placeHello(g){
   if(!g) return false;
   const h=findHeading(g);
   if(!h||!h.parentNode) return false;
+
   const e=ensureHello();
   if(e.parentNode!==h.parentNode||e.nextSibling!==h){
     h.parentNode.insertBefore(e,h);
   }
+
+  const t=ensureTrial();
+  if(t.parentNode!==h.parentNode){
+    h.parentNode.insertBefore(t,h);
+  }
+
+  const ex=ensureExplore();
+  if(ex.parentNode!==h.parentNode){
+    h.parentNode.insertBefore(ex,h);
+  }
+
   placeTrial(h);
-  placeExplore(h);
   host=g;
   revealHello();
   return true;
@@ -577,29 +597,22 @@ function placeTrial(h){
     `I wanted to remind you – you have ${days} ${plural} remaining on your Pro Trial.`
   ];
   const variantIndex=pickRotationIndex(variants,e.dataset.umVariantIndex);
-  const text=variants[variantIndex]||`Just letting you know, you have ${days} ${plural} left on your Pro Trial.`;
+  const text=variants[variantIndex]||variants[0];
   if(!Number.isFinite(Number(e.dataset.umVariantIndex))) e.dataset.umVariantIndex=String(variantIndex);
   if(e.textContent!==text) e.textContent=text;
-  if(e.parentNode!==h.parentNode||e.nextSibling!==h){
-    h.parentNode.insertBefore(e,h);
-  }
   revealTrial();
 }
 function placeExplore(h){
   if(!h||!h.parentNode) return;
+
   if(!shouldShowExplore()){
-    if(explore?.parentNode) explore.parentNode.removeChild(explore);
+    if(explore){
+      explore.style.opacity='0';
+      explore.style.display='none';
+    }
     return;
   }
-  const e = ensureExplore();
-  const email = getUserEmail();
-  const text = pickExploreVariant(email);
-  if(e.textContent !== text) e.textContent = text;
-  const anchor = (trial?.parentNode === h.parentNode) ? trial : hello;
-  const beforeNode = anchor ? anchor.nextSibling || h : h;
-  if(e.parentNode !== h.parentNode || e.previousSibling !== anchor){
-    h.parentNode.insertBefore(e, beforeNode);
-  }
+
   revealExplore();
 }
 function refresh(){
