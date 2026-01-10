@@ -216,7 +216,7 @@ window.__umHelloBubbleInstalled = true;
 
 const GRID_IDS = ['grid1','grid2','grid3','grid4','grid5'];
 const MIN_VISIBLE_PX = 16;           // smaller threshold = more tolerant
-let hello = null, host = null, retryCount = 0, maxRetries = 60, hydrated = false;
+let hello = null, trial = null, host = null, retryCount = 0, maxRetries = 60, hydrated = false;
 let gridObserver = null, pendingCheck = null;
 
 function toFirst(s){return String(s||'').trim().split(/\s+/)[0]||'';}
@@ -230,6 +230,29 @@ function getFirstName(){
     const u = window.logged_in_user || window.Softr?.currentUser || window.__U?.profile || {};
     return toFirst(u.softr_user_full_name) || fromEmailPrefix(u.softr_user_email || u.email) || 'there';
   }catch{return 'there';}
+}
+function normalizePlanCode(raw){
+  const normalized=String(raw||'').trim().toLowerCase();
+  if(!normalized) return '';
+  return normalized.replace(/\s+/g,'_');
+}
+function resolveTrialStatus(){
+  const u=window.logged_in_user||window.Softr?.currentUser||window.__U?.profile||{};
+  const profile=window.__U?.profile||{};
+  const planCode=normalizePlanCode(u.plan_code||profile.plan_code||u.billing_plan_code||'');
+  const planStatus=String(u.plan_status||profile.plan_status||u.billing_status||'').trim().toLowerCase();
+  const planName=String(u.plan_name||profile.plan_name||u.billing_plan||'').trim().toLowerCase();
+  const trialEndAt=u.pro_trial_end_at||profile.pro_trial_end_at||null;
+  const hasSignals=!!(planCode||planStatus||planName||trialEndAt);
+  if(!hasSignals) return {state:'unknown'};
+  const isTrialPlan=planCode==='pro_trial'||planStatus.includes('trial')||planName.includes('trial');
+  if(!isTrialPlan) return {state:'not_trial'};
+  const endAt=Date.parse(trialEndAt||'');
+  if(!Number.isFinite(endAt)) return {state:'unknown_trial'};
+  const diffMs=endAt-Date.now();
+  if(diffMs<=0) return {state:'expired'};
+  const daysLeft=Math.max(1,Math.ceil(diffMs/(24*60*60*1000)));
+  return {state:'active',daysLeft};
 }
 function isShown(e){
   if(!e) return false;
@@ -268,12 +291,27 @@ function ensureHello(){
   hello.style.visibility='hidden';
   return hello;
 }
+function ensureTrial(){
+  if(trial) return trial;
+  trial=document.createElement('div');
+  trial.className='uni-bubble tutor um-section um-dash-trial';
+  trial.style.margin='0 0 12px 0';
+  trial.style.transition='opacity .4s ease, visibility 0s linear .05s';
+  trial.style.opacity='0';
+  trial.style.visibility='hidden';
+  return trial;
+}
 
 function revealHello(){
   if(!hello||hydrated) return;
   hydrated=true;
   hello.style.visibility='visible';
   requestAnimationFrame(()=>{hello.style.opacity='1';});
+}
+function revealTrial(){
+  if(!trial) return;
+  trial.style.visibility='visible';
+  requestAnimationFrame(()=>{trial.style.opacity='1';});
 }
 function placeHello(g){
   if(!g) return false;
@@ -283,14 +321,42 @@ function placeHello(g){
   if(e.parentNode!==h.parentNode||e.nextSibling!==h){
     h.parentNode.insertBefore(e,h);
   }
+  placeTrial(h);
   host=g;
   revealHello();
   return true;
+}
+let trialRetryCount=0, maxTrialRetries=20;
+function placeTrial(h){
+  const status=resolveTrialStatus();
+  if(status.state==='not_trial'||status.state==='expired'){
+    if(trial?.parentNode) trial.parentNode.removeChild(trial);
+    return;
+  }
+  if(status.state!=='active'){
+    if(trialRetryCount<maxTrialRetries){
+      trialRetryCount++;
+      setTimeout(()=>placeTrial(h),400);
+    }
+    return;
+  }
+  const e=ensureTrial();
+  const days=status.daysLeft;
+  const text=`Just letting you know, you have ${days} day${days===1?'':'s'} left on your Pro Trial.`;
+  if(e.textContent!==text) e.textContent=text;
+  if(e.parentNode!==h.parentNode||e.nextSibling!==h){
+    h.parentNode.insertBefore(e,h);
+  }
+  revealTrial();
 }
 function refresh(){
   const g=topGrid();
   if(!g){ return; }
   if(g!==host){ placeHello(g); }
+  else{
+    const h=findHeading(g);
+    if(h) placeTrial(h);
+  }
 }
 function tryUntilVisible(){
   refresh();
