@@ -407,6 +407,21 @@ function installExploreClickWatcher(){
     suppressExplore('explore_clicked');
   },{capture:true});
 }
+function waitForExploreEligibility(timeoutMs=900){
+  if(!getUserEmail()) return Promise.resolve();
+  if(resolveAccountAgeMs() != null) return Promise.resolve();
+  return new Promise(resolve=>{
+    let settled=false;
+    const done=()=>{
+      if(settled) return;
+      settled=true;
+      window.removeEventListener('um:dashboard-profile',done);
+      resolve();
+    };
+    window.addEventListener('um:dashboard-profile',done,{once:true});
+    setTimeout(done, timeoutMs);
+  });
+}
 function pickRotation(list, fallback){
   if(!Array.isArray(list)||!list.length) return fallback||'';
   return list[Math.floor(Math.random()*list.length)];
@@ -628,15 +643,18 @@ function watchGrids(){
 let booted=false;
 function boot(){
   if(booted) return; booted=true;
-  refresh();
-  watchGrids();
-  tryUntilVisible();
   installExploreClickWatcher();
-  window.addEventListener('scroll',refresh,{passive:true});
-  window.addEventListener('resize',refresh,{passive:true});
-  window.addEventListener('um:dashboard-profile',()=>scheduleVisibilityCheck(0));
-  // re-inject after Softr refreshes or your gating reruns
-  window.addEventListener('@softr/page-content-loaded',()=>{watchGrids(); scheduleVisibilityCheck(60);});
+  const start=()=>{
+    refresh();
+    watchGrids();
+    tryUntilVisible();
+    window.addEventListener('scroll',refresh,{passive:true});
+    window.addEventListener('resize',refresh,{passive:true});
+    window.addEventListener('um:dashboard-profile',()=>scheduleVisibilityCheck(0));
+    // re-inject after Softr refreshes or your gating reruns
+    window.addEventListener('@softr/page-content-loaded',()=>{watchGrids(); scheduleVisibilityCheck(60);});
+  };
+  waitForExploreEligibility().then(start);
 }
 
 (document.readyState!=='loading') ? boot() : document.addEventListener('DOMContentLoaded',boot);
