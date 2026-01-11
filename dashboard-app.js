@@ -331,6 +331,7 @@ const EXPLORE_SUPPRESS_KEY = 'um.dashboard.explore.suppressed';
 const EXPLORE_VARIANT_KEY = 'um.dashboard.explore.variant';
 const EXPLORE_PENDING_KEY = 'um.dashboard.explore.pending';
 const EXPLORE_SEEN_KEY = 'um.dashboard.explore.seen';
+const EXPLORE_SEEN_TARGET = 7;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 let hello = null, trial = null, explore = null, host = null, retryCount = 0, maxRetries = 60, hydrated = false;
@@ -406,11 +407,6 @@ function storageKey(base, email){
   if(!email) return null;
   return `${base}.${email.toLowerCase()}`;
 }
-function readLocalFlag(base, email){
-  const key = storageKey(base, email);
-  if(!key) return false;
-  try{ return !!localStorage.getItem(key); }catch{ return false; }
-}
 function readLocalPayload(base, email){
   const key = storageKey(base, email);
   if(!key) return null;
@@ -446,7 +442,19 @@ function suppressExplore(reason){
 }
 function markExploreSeen(email){
   if(!email) return;
-  writeLocalFlag(EXPLORE_SEEN_KEY, email, { ts: Date.now() });
+  const nextCount = getExploreSeenCount(email) + 1;
+  writeLocalFlag(EXPLORE_SEEN_KEY, email, { count: nextCount, ts: Date.now() });
+  if(nextCount >= EXPLORE_SEEN_TARGET){
+    writeLocalFlag(EXPLORE_SUPPRESS_KEY, email, { reason: 'seen_threshold', ts: Date.now() });
+  }
+}
+function getExploreSeenCount(email){
+  const payload = readLocalPayload(EXPLORE_SEEN_KEY, email);
+  if(payload == null) return 0;
+  if(typeof payload === 'number') return Number.isFinite(payload) ? payload : 0;
+  const count = Number(payload.count);
+  if(Number.isInteger(count) && count >= 0) return count;
+  return payload.ts ? 1 : 0;
 }
 function pickExploreVariant(email){
   if(!EXPLORE_VARIANTS.length) return '';
@@ -469,10 +477,9 @@ function shouldShowExplore(){
   if(email) applyPendingSuppression(email);
   if(!email) return false;
   const suppression = readLocalPayload(EXPLORE_SUPPRESS_KEY, email);
+  const seenCount = getExploreSeenCount(email);
+  if(seenCount >= EXPLORE_SEEN_TARGET) return false;
   if(suppression){
-    if(suppression.reason !== 'explore_clicked' || readLocalFlag(EXPLORE_SEEN_KEY, email)){
-      return false;
-    }
     try{ localStorage.removeItem(storageKey(EXPLORE_SUPPRESS_KEY, email)); }catch{}
   }
   if(!resolveHasStartedLesson()) return false;
