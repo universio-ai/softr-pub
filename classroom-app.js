@@ -2675,7 +2675,7 @@ injectStyles(`
 
   /* Outer edge stays solid white */
   background: rgba(255,255,255,0.1) !important;
-  border: 0.7px solid #000000 !important; /* Mobile Composer Borders */
+  border: 1px solid rgba(15, 18, 34, 0.18) !important; /* softer composer edge */
   box-shadow: 0 12px 32px rgba(15, 18, 34, 0.12);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
@@ -2689,7 +2689,7 @@ injectStyles(`
   flex: 1 1 auto;
   min-width: 0;
   border-radius: 18px !important;
-  border: 0.7px solid #000000 !important; /* exact same border look */
+  border: 1px solid rgba(15, 18, 34, 0.18) !important; /* match softer edge */
 
   /* Fully transparent input area */
   background: rgba(255,255,255,0.65) !important;
@@ -2704,7 +2704,7 @@ injectStyles(`
 
   /* === Microphone button edge === */
   #${ROOT_ID} .uni-input-row .mic-btn {
-    border: 0.7px solid #000000 !important; /* Mobile Composer Borders */
+    border: 1px solid rgba(15, 18, 34, 0.18) !important; /* softer composer edge */
     border-radius: 50%;
     background: rgba(255,255,255,0.65) !important;
   }
@@ -2744,7 +2744,7 @@ injectStyles(`
       box-sizing: border-box;
 
       background: rgba(255,255,255,0.1) !important;
-      border: 0.7px solid #000000 !important;
+      border: 1px solid rgba(15, 18, 34, 0.18) !important;
       box-shadow: 0 12px 32px rgba(15, 18, 34, 0.12);
       backdrop-filter: blur(18px);
       -webkit-backdrop-filter: blur(18px);
@@ -2757,7 +2757,7 @@ injectStyles(`
       flex: 1 1 auto;
       min-width: 0;
       border-radius: 18px !important;
-      border: 0.7px solid #000000 !important;
+      border: 1px solid rgba(15, 18, 34, 0.18) !important;
       background: rgba(255,255,255,0.65) !important;
       backdrop-filter: none !important;
       -webkit-backdrop-filter: none !important;
@@ -2768,7 +2768,7 @@ injectStyles(`
     }
 
     #${ROOT_ID} .uni-input-row .mic-btn {
-      border: 0.7px solid #000000 !important;
+      border: 1px solid rgba(15, 18, 34, 0.18) !important;
       border-radius: 50%;
       background: rgba(255,255,255,0.65) !important;
     }
