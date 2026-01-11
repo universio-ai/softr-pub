@@ -1,14 +1,10 @@
 // ==========================================
-//  UNIVERSIO DASHBOARD  (Unified build 2025-10)
-//  Includes:
-//    • Onboarding gate / redirect
-//    • Gradient, red scrub & glass tint
-//    • Icon/eligibility helpers
-//    • Bubble rail + hello bubble
-//    • Grid visibility via Supabase
-//    • Analytics push
+//  UNIVERSIO DASHBOARD  (Atomic Hydration build 2026-01)
+//  Goal: eliminate out-of-sequence visible loads by keeping the loader
+//  up until grids + bubbles are fully prepared, then reveal once.
+//  NOTE: All prior logic/styling preserved; only hydration sequencing changed.
 //  ==========================================
-console.log("Nov 20 2025, 14:16 UTC");
+console.log("Atomic Hydration build 2026-01-10");
 
 // 1) GRADIENT + RED SCRUB BASE
 (function injectBaseGradients(){
@@ -132,10 +128,42 @@ const BLOCK_ID='debd0e99-31da-4492-a18f-d4dd56169e13';
 const FIELDS=['eligible_reason','_mxw5o0b15'];
 const MAP={locked:{html:'🔒',label:'Locked'},eligible:{html:'🟢',label:'Eligible'},in_progress:{html:'▶️',label:'In progress'},complete:{html:'✅',label:'Complete'}};
 const norm=v=>String(v||'').trim().toLowerCase().replace(/\s+/g,'_');
-function apply(el,state){if(el.dataset.umIconified)return 0;const m=MAP[state];if(!m)return 0;el.dataset.umIconified='1';el.innerHTML=`<span data-um-state="${state}" aria-label="${m.label}">${m.html}</span>`;el.style.removeProperty('text-align');el.style.removeProperty('min-width');el.style.removeProperty('display');return 1;}
-function swap(scope){let n=0;FIELDS.forEach(k=>{scope.querySelectorAll(`[data-field="${k}"]`).forEach(el=>n+=apply(el,norm(el.textContent)));});
-scope.querySelectorAll('table').forEach(t=>{const heads=[...t.querySelectorAll('thead th')].map(th=>norm(th.textContent));const idx=heads.indexOf('eligible_reason');if(idx<0)return;t.querySelectorAll('tbody tr').forEach(tr=>{const td=tr.querySelectorAll('td')[idx];if(!td)return;n+=apply(td,norm(td.textContent));});});return n;}
-function run(){const s=document.querySelector(`[data-block-id="${BLOCK_ID}"]`);if(!s)return;swap(s);}
+function apply(el,state){
+  if(el.dataset.umIconified)return 0;
+  const m=MAP[state];
+  if(!m)return 0;
+  el.dataset.umIconified='1';
+  el.innerHTML=`<span data-um-state="${state}" aria-label="${m.label}">${m.html}</span>`;
+  el.style.removeProperty('text-align');
+  el.style.removeProperty('min-width');
+  el.style.removeProperty('display');
+  return 1;
+}
+function swap(scope){
+  let n=0;
+  FIELDS.forEach(k=>{
+    scope.querySelectorAll(`[data-field="${k}"]`).forEach(el=>n+=apply(el,norm(el.textContent)));
+  });
+  scope.querySelectorAll('table').forEach(t=>{
+    const heads=[...t.querySelectorAll('thead th')].map(th=>norm(th.textContent));
+    const idx=heads.indexOf('eligible_reason');
+    if(idx<0)return;
+    t.querySelectorAll('tbody tr').forEach(tr=>{
+      const td=tr.querySelectorAll('td')[idx];
+      if(!td)return;
+      n+=apply(td,norm(td.textContent));
+    });
+  });
+  return n;
+}
+function run(){
+  const s=document.querySelector(`[data-block-id="${BLOCK_ID}"]`);
+  if(!s)return;
+  swap(s);
+}
+window.__umEligibleIcons = window.__umEligibleIcons || {};
+window.__umEligibleIcons.run = run;
+
 window.addEventListener('@softr/page-content-loaded',run);
 (document.readyState!=='loading')?run():document.addEventListener('DOMContentLoaded',run);
 new MutationObserver(run).observe(document.getElementById('page-content')||document.body,{childList:true,subtree:true});
@@ -193,10 +221,12 @@ new MutationObserver(run).observe(document.getElementById('page-content')||docum
 'use strict';
 if(window.__umSectionBubbleizeInstalled)return;
 window.__umSectionBubbleizeInstalled=true;
+
 const FREEZE_ATTR='data-um-bubble-freeze';
 document.documentElement.setAttribute(FREEZE_ATTR,'1');
 let thawed=false;
 const thawHeadings=()=>{if(thawed) return; thawed=true; document.documentElement.setAttribute(FREEZE_ATTR,'0');};
+
 const TARGETS=[
  {blockId:'90235312-fe34-41b7-9e85-30fbe520ad6a',selectors:['#grid1'],textMatch:/Try\s+your\s+first\s+lesson/i,variants:[
    'Ready to try out one of these first lessons?',
@@ -213,8 +243,13 @@ const TARGETS=[
  {selectors:['#grid4'],textMatch:/Certificates/i},
  {selectors:['#grid5'],textMatch:/Microcourse/i}
 ];
-function isVis(e){if(!e)return false;const cs=getComputedStyle(e);if(cs.display==='none'||cs.visibility==='hidden'||+cs.opacity===0)return false;const r=e.getBoundingClientRect();return r.width>0&&r.height>0;}
-function rootsFor(t){const o=[];(t.selectors||[]).forEach(s=>o.push(...document.querySelectorAll(s)));if(t.blockId)o.push(...document.querySelectorAll(`[data-block-id="${t.blockId}"]`));return Array.from(new Set(o));}
+
+function rootsFor(t){
+  const o=[];
+  (t.selectors||[]).forEach(s=>o.push(...document.querySelectorAll(s)));
+  if(t.blockId)o.push(...document.querySelectorAll(`[data-block-id="${t.blockId}"]`));
+  return Array.from(new Set(o));
+}
 function pickVariant(list){
   if(!Array.isArray(list)||!list.length) return '';
   return list[Math.floor(Math.random()*list.length)];
@@ -234,18 +269,26 @@ function bubbleize(h,variant){
   h.appendChild(s);
 }
 function within(r,t){
-  const hs=[...r.querySelectorAll('h1,h2,h3,h4')].filter(isVis);
+  const hs=[...r.querySelectorAll('h1,h2,h3,h4')];
   const h=hs.find(el=>t.textMatch.test((el.textContent||'').trim()))||hs[0];
   if(h)bubbleize(h,pickVariant(t.variants));
 }
-function run(){TARGETS.forEach(t=>{rootsFor(t).forEach(r=>within(r,t));});thawHeadings();}
-const start=()=>run();
-(document.readyState!=='loading')?start():document.addEventListener('DOMContentLoaded',start);
-window.addEventListener('@softr/page-content-loaded',start);
-new MutationObserver(start).observe(document.getElementById('page-content')||document.body,{childList:true,subtree:true});
+function run(){
+  TARGETS.forEach(t=>{
+    rootsFor(t).forEach(r=>within(r,t));
+  });
+  thawHeadings();
+}
+
+window.__umSectionBubbleize = window.__umSectionBubbleize || {};
+window.__umSectionBubbleize.run = run;
+
+window.addEventListener('@softr/page-content-loaded',run);
+(document.readyState!=='loading')?run():document.addEventListener('DOMContentLoaded',run);
+new MutationObserver(run).observe(document.getElementById('page-content')||document.body,{childList:true,subtree:true});
 })();
 
-// hello bubble
+// hello bubble (exposes atomicPrepare)
 (function(){
 'use strict';
 
@@ -253,7 +296,7 @@ if(window.__umHelloBubbleInstalled) return;
 window.__umHelloBubbleInstalled = true;
 
 const GRID_IDS = ['grid1','grid2','grid3','grid4','grid5'];
-const MIN_VISIBLE_PX = 16;           // smaller threshold = more tolerant
+const MIN_VISIBLE_PX = 16;
 const EXPLORE_VARIANTS = [
   "If you’d like to start something else, Explore shows all microcourses and certificates.",
   "You can find all available microcourses and certificates under Explore.",
@@ -268,14 +311,12 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 let hello = null, trial = null, explore = null, host = null, retryCount = 0, maxRetries = 60, hydrated = false;
 let gridObserver = null, pendingCheck = null;
 
-// NEW: explore is existence-gated (no CSS gating)
+// explore eligibility
 let exploreEligible = null;
 let exploreEligibilityResolved = false;
 
 function purgeExploreEverywhere(){
-  try{
-    document.querySelectorAll('.um-dash-explore').forEach(n=>n.remove());
-  }catch{}
+  try{ document.querySelectorAll('.um-dash-explore').forEach(n=>n.remove()); }catch{}
   explore = null;
 }
 
@@ -305,7 +346,6 @@ function lessonSignalsReady(){
   return ['in_progress_count','completed_count','completed_node_count','has_completed_node']
     .some(k => p[k] !== undefined && p[k] !== null);
 }
-
 function safeParseDate(value){
   if(!value) return null;
   const ts = Date.parse(value);
@@ -317,19 +357,9 @@ function resolveAccountAgeMs(){
   if(Number.isFinite(explicitAge) && explicitAge >= 0) return explicitAge * DAY_MS;
   const user = getUserContext();
   const candidates = [
-    profile.profile_created_at,
-    profile.created_at,
-    profile.signup_at,
-    profile.signed_up_at,
-    profile.createdAt,
-    user.created_at,
-    user.createdAt,
-    user.signup_at,
-    user.signupAt,
-    user.signed_up_at,
-    user.softr_user_created_at,
-    user.created_on,
-    user.created
+    profile.profile_created_at, profile.created_at, profile.signup_at, profile.signed_up_at, profile.createdAt,
+    user.created_at, user.createdAt, user.signup_at, user.signupAt, user.signed_up_at,
+    user.softr_user_created_at, user.created_on, user.created
   ];
   for(const candidate of candidates){
     const ts = safeParseDate(candidate);
@@ -429,11 +459,8 @@ function installExploreClickWatcher(){
   },{capture:true});
 }
 
-// Wait until dashboard_profile is present (or times out) so eligibility is deterministic.
 function waitForExploreEligibility(timeoutMs=900){
-  // If we already have enough to decide, return immediately.
-    if(getUserEmail() && resolveAccountAgeMs() != null && lessonSignalsReady()) return Promise.resolve();
-
+  if(getUserEmail() && resolveAccountAgeMs() != null && lessonSignalsReady()) return Promise.resolve();
   return new Promise(resolve=>{
     let settled=false;
     const done=()=>{
@@ -451,16 +478,11 @@ function waitForExploreEligibility(timeoutMs=900){
 
 function resolveExploreEligibilityIfReady(){
   if(exploreEligibilityResolved) return;
-
   const email = getUserEmail();
   const ageMs = resolveAccountAgeMs();
-
-  // Must have lesson signals, otherwise we can lock false too early
   if(!email || ageMs == null || !lessonSignalsReady()) return;
-
   exploreEligible = shouldShowExplore();
   exploreEligibilityResolved = true;
-
   if(!exploreEligible) purgeExploreEverywhere();
 }
 
@@ -497,6 +519,7 @@ function resolveTrialStatus(){
   const daysLeft=Math.max(1,Math.ceil(diffMs/(24*60*60*1000)));
   return {state:'active',daysLeft};
 }
+
 function isShown(e){
   if(!e) return false;
   const cs = getComputedStyle(e);
@@ -554,12 +577,9 @@ function ensureTrial(){
   trial.style.visibility='hidden';
   return trial;
 }
-
-// NEW: Explore bubble is only created if eligible (no CSS gating / no dataset switching).
 function ensureExplore(){
   if(explore) return explore;
   if(!exploreEligibilityResolved || exploreEligible !== true) return null;
-
   explore=document.createElement('div');
   explore.className='uni-bubble tutor um-section um-dash-explore';
   explore.dataset.umPreinserted='1';
@@ -571,7 +591,6 @@ function ensureExplore(){
 
   const email = getUserEmail();
   explore.textContent = pickExploreVariant(email);
-
   explore.addEventListener('click',()=>suppressExplore('dismissed'));
   return explore;
 }
@@ -610,8 +629,6 @@ function placeHello(g){
   }
 
   placeTrial(h);
-
-  // NEW: explore is inserted only if eligible (and only after eligibility is resolved).
   placeExplore(h);
 
   host=g;
@@ -651,22 +668,13 @@ function placeTrial(h){
 
 function placeExplore(h){
   if(!h||!h.parentNode) return;
-
-  // If eligibility not resolved yet, do nothing (prevents premature insertion).
-  if(!exploreEligibilityResolved){
-    return;
-  }
-
-  // If not eligible, ensure Explore bubble does not exist anywhere.
+  if(!exploreEligibilityResolved) return;
   if(exploreEligible !== true){
     purgeExploreEverywhere();
     return;
   }
-
-  // Eligible: insert + reveal.
   const ex = ensureExplore();
   if(!ex) return;
-
   if(ex.parentNode!==h.parentNode){
     h.parentNode.insertBefore(ex,h);
   }
@@ -719,38 +727,69 @@ function boot(){
   installExploreClickWatcher();
 
   const start=()=>{
-    // Resolve eligibility ONCE at startup (deterministic, no CSS toggling).
     resolveExploreEligibilityIfReady();
-
     refresh();
     watchGrids();
     tryUntilVisible();
     window.addEventListener('scroll',refresh,{passive:true});
     window.addEventListener('resize',refresh,{passive:true});
-
     window.addEventListener('um:dashboard-profile',()=>{
       resolveExploreEligibilityIfReady();
-      scheduleVisibilityCheck(0); // forces placeExplore after it becomes eligible
+      scheduleVisibilityCheck(0);
     });
-    
-    // re-inject after Softr refreshes or your gating reruns
     window.addEventListener('@softr/page-content-loaded',()=>{
       watchGrids();
-      // Do not recompute eligibility; just re-render bubbles.
       scheduleVisibilityCheck(60);
     });
   };
 
-  // Wait briefly for dashboard_profile so eligibility is accurate (but do not block forever).
   waitForExploreEligibility().then(start);
 }
+
+// ATOMIC PREP: runs synchronously-ish with a short wait so loader can be held until bubbles exist.
+function atomicPrepare(timeoutMs=900){
+  return new Promise(resolve=>{
+    // ensure eligibility can be resolved with the just-hydrated dashboard_profile
+    resolveExploreEligibilityIfReady();
+
+    // run one forced refresh cycle after DOM has applied grid displays
+    requestAnimationFrame(()=>{
+      refresh();
+
+      // if trial/explore are already visible, we can resolve immediately
+      const startT = Date.now();
+      (function poll(){
+        const hOk = !!hello && hello.offsetParent!==null;
+        const tStatus = resolveTrialStatus();
+        const tOk =
+          (tStatus.state==='not_trial'||tStatus.state==='expired') ||
+          (!!trial && trial.style.visibility==='visible');
+        const eOk =
+          (exploreEligibilityResolved && exploreEligible !== true) ||
+          (!!explore && explore.style.visibility==='visible');
+
+        if((hOk && tOk && eOk) || (Date.now()-startT) >= timeoutMs){
+          resolve();
+          return;
+        }
+        setTimeout(poll, 40);
+      })();
+    });
+  });
+}
+
+window.__umHelloBubble = window.__umHelloBubble || {};
+window.__umHelloBubble.boot = boot;
+window.__umHelloBubble.refresh = refresh;
+window.__umHelloBubble.atomicPrepare = atomicPrepare;
+window.__umHelloBubble.resolveExploreEligibilityIfReady = resolveExploreEligibilityIfReady;
 
 (document.readyState!=='loading') ? boot() : document.addEventListener('DOMContentLoaded',boot);
 window.addEventListener('load',boot,{once:true});
 
 })();
 
-// 6) GRID VISIBILITY VIA SUPABASE
+// 6) GRID VISIBILITY VIA SUPABASE  (ATOMIC HYDRATION PATCHED)
 function toggleGridsUnified(){
   const $=id=>document.getElementById(id);
 
@@ -762,7 +801,7 @@ function toggleGridsUnified(){
     }catch{}
   };
 
-  // Keep the opening loader around until we have a final decision
+  // Loader overlay (kept until ATOMIC PREP completes)
   const LOADER_ID='um-grid-loading';
   const LOADER_STYLE_ID='um-grid-loading-style';
   const ensureLoaderStyle=()=>{
@@ -772,54 +811,24 @@ function toggleGridsUnified(){
     style.textContent=`
 #${LOADER_ID}{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:9999;background:rgba(255,255,255,.92);backdrop-filter:blur(3px);transition:opacity .14s ease;}
 #${LOADER_ID}[data-hidden="1"]{opacity:0;pointer-events:none;}
-
 #${LOADER_ID} .um-grid-loader{display:inline-flex;gap:8px;align-items:center;justify-content:center;}
-
 #${LOADER_ID} .um-grid-loader span {
-  width: 12px;
-  height: 12px;
-  border-radius: 999px;
+  width: 12px; height: 12px; border-radius: 999px;
   animation: umGridDot 1s ease-in-out infinite;
-background: #a855f7;
-background-size: 800% 800% !important;
-background-position: calc(var(--i,0) * 200%) 0 !important;
--webkit-background-clip: padding-box !important;
-background-clip: padding-box !important;
-
-
+  background: #a855f7;
   opacity: .28;
   box-shadow: 0 2px 6px rgba(123,97,255,.3);
 }
-
-#${LOADER_ID} .um-grid-loader span:nth-child(1){
-  animation-delay:-.20s;
-  --i: 0;
-}
-#${LOADER_ID} .um-grid-loader span:nth-child(2){
-  animation-delay:-.10s;
-  --i: 1;
-}
-#${LOADER_ID} .um-grid-loader span:nth-child(3){
-  animation-delay:0s;
-  --i: 2;
-}
-
-
+#${LOADER_ID} .um-grid-loader span:nth-child(1){animation-delay:-.20s;}
+#${LOADER_ID} .um-grid-loader span:nth-child(2){animation-delay:-.10s;}
+#${LOADER_ID} .um-grid-loader span:nth-child(3){animation-delay:0s;}
 @keyframes umGridDot {
-  0%, 80%, 100% {
-    transform: scale(.6);
-    opacity: .25;
-    filter: brightness(0.85);
-  }
-  40% {
-    transform: scale(1);
-    opacity: 1;
-    filter: brightness(1.18) saturate(1.25);
-  }
+  0%, 80%, 100% { transform: scale(.6); opacity: .25; filter: brightness(0.85); }
+  40% { transform: scale(1); opacity: 1; filter: brightness(1.18) saturate(1.25); }
 }
 `;
-  document.head.appendChild(style);
-};
+    document.head.appendChild(style);
+  };
   const showLoader=()=>{
     ensureLoaderStyle();
     let scrim=document.getElementById(LOADER_ID);
@@ -840,119 +849,51 @@ background-clip: padding-box !important;
     setTimeout(()=>scrim.remove(),160);
   };
 
-  // Release the loader as soon as a grid is visibly present, even if Supabase
-  // is still resolving in the background. This avoids the overlay lingering
-  // when cached states have already painted the cards.
-  let loaderReleased=false;
-  const isGridShowing=()=>{
-    return ['grid1','grid2','grid3','grid4','grid5'].some(id=>{
-      const el=$(id);
-      if(!el) return false;
-      const cs=getComputedStyle(el);
-      return cs.display!=='none' && cs.visibility!=='hidden' && +cs.opacity!==0;
-    });
-  };
-  const releaseLoader=label=>{
-    if(loaderReleased) return;
-    if(!isGridShowing()) return;
-    loaderReleased=true;
-    console.debug(label||'Releasing loader');
-    hideLoader();
-  };
-
-  /* ⬇️ EDITED: only the body of `show` changed */
+  // DISPLAY helper
   const show=(el,val)=>{
     if(!el) return;
     el.style.setProperty("display",val,"important");
     if(val!=="none"){
-      // reveal: remove CSS hiding so no opacity/visibility conflicts
       el.style.removeProperty("visibility");
       el.style.removeProperty("opacity");
     }else{
-      // hide: reinforce invisibility to prevent flicker during gating
       el.style.setProperty("visibility","hidden","important");
       el.style.setProperty("opacity","0","important");
     }
   };
 
   const DISPLAY_MODE={grid1:"block",grid2:"flex",grid3:"flex",grid4:"flex",grid5:"flex"};
-  const applyStates=(states,label)=>{
+  const applyStates=(states)=>{
     Object.entries(DISPLAY_MODE).forEach(([id,mode])=>{
       const el=$(id);
       show(el,states[id]?mode:"none");
     });
-    // Give the DOM a beat to paint, then drop the loader if something is visible
-    // so users are never waiting on background confirmations.
-    setTimeout(()=>releaseLoader(label||'Grids painted'),90);
   };
+
   const showFreshUser=()=>{
     const states={grid1:true,grid2:false,grid3:false,grid4:false,grid5:false};
-    applyStates(states,"Fresh-user grids applied");
+    applyStates(states);
     return states;
   };
 
   const showResumeFallback=()=>{
     const states={grid1:false,grid2:true,grid3:false,grid4:false,grid5:false};
-    applyStates(states,"Resume fallback applied");
+    applyStates(states);
     return states;
   };
 
-  // Keep loader up-front; it will be dismissed once a visible grid exists
+  // Atomic hydration: keep loader up-front until final state + bubbles are prepared.
   showLoader();
 
-  console.groupCollapsed("🔍 Universio Dashboard Debug");
+  console.groupCollapsed("🔍 Universio Dashboard Debug (Atomic)");
 
   let resolvedEmail=null;
-
   let finalized=false, closed=false;
   const end=()=>{ if(!closed){ console.groupEnd(); closed=true; } };
 
-  // Temporary apply that still allows Supabase to override (keeps grids responsive on slow mobile)
-  const applyTemp=(states,label)=>{
-    console.debug(label, states);
-    applyStates(states,label);
-  };
+  // Keep all grids hidden while resolving user (under loader)
+  applyStates({grid1:false,grid2:false,grid3:false,grid4:false,grid5:false});
 
-  const applyFinal=(states,label,cache=true)=>{
-    if(finalized) return;
-    finalized=true;
-    clearTimeout(fallbackTimer);
-    clearTimeout(finalGuard);
-    console.debug(label, states);
-    applyStates(states,label);
-    if(cache) writeCache(states,resolvedEmail);
-    // Ensure the loader is gone even if visibility checks fail (e.g., all grids hidden)
-    setTimeout(hideLoader,220);
-    end();
-  };
-
-  // If Supabase is slow, use a temporary fallback that remains overridable.
-  // Cancelled the moment we finalize so it cannot overwrite real data.
-  const fallbackTimer = setTimeout(()=>{
-    console.debug("⏳ Still waiting on Supabase; keeping loader active and grids hidden");
-  },2200);
-
-  // Safety guard: prefer cached states when available; never cache a forced fallback.
-  const finalGuard=setTimeout(()=>{
-    if(finalized) return;
-    const cached=readCache();
-    if(cached?.states && cached?.email && cached.email===resolvedEmail){
-      applyFinal(cached.states,"Final grid state (cached timeout)");
-      return;
-    }
-    applyFinal(showFreshUser(),"Final grid state (timeout; not cached)",false);
-  },12000);
-
-  // Keep all grids hidden until we have a final decision.
-  // This avoids the grid1 flash for returning users.
-  applyTemp(
-    { grid1:false, grid2:false, grid3:false, grid4:false, grid5:false },
-    "Keeping grids hidden while resolving user"
-  );
-
-  // Cache is validated against the resolved user; we null it out immediately if
-  // it does not belong to the current session to avoid leaking old states into
-  // fallbacks.
   let cached=readCache();
 
   const resolveUserContext = (timeoutMs=12000)=>new Promise(resolve=>{
@@ -977,6 +918,72 @@ background-clip: padding-box !important;
     })();
   });
 
+  // Timeouts unchanged
+  const fallbackTimer = setTimeout(()=>{
+    console.debug("⏳ Still waiting on Supabase; loader remains (atomic)");
+  },2200);
+
+  const finalGuard=setTimeout(()=>{
+    if(finalized) return;
+    const cachedNow=readCache();
+    if(cachedNow?.states && cachedNow?.email && cachedNow.email===resolvedEmail){
+      applyFinal(cachedNow.states,"Final grid state (cached timeout)",true);
+      return;
+    }
+    applyFinal(showFreshUser(),"Final grid state (timeout; not cached)",false);
+  },12000);
+
+  // ATOMIC FINALIZER: runs bubbles + section bubbleize BEFORE hiding loader
+  function prepareAtomicUI(){
+    const tasks = [];
+
+    // Ensure section bubbleization is applied on the final visible grids
+    if(window.__umSectionBubbleize?.run) {
+      tasks.push(Promise.resolve().then(()=>window.__umSectionBubbleize.run()));
+    }
+
+    // Ensure eligible icons have run after final layout
+    if(window.__umEligibleIcons?.run){
+      tasks.push(Promise.resolve().then(()=>window.__umEligibleIcons.run()));
+    }
+
+    // Ensure hello/trial/explore bubbles are placed (and wait briefly)
+    if(window.__umHelloBubble?.atomicPrepare){
+      tasks.push(window.__umHelloBubble.atomicPrepare(900));
+    }
+
+    return Promise.allSettled(tasks).then(()=>{});
+  }
+
+  const applyFinal=(states,label,cache=true)=>{
+    if(finalized) return;
+    finalized=true;
+    clearTimeout(fallbackTimer);
+    clearTimeout(finalGuard);
+
+    console.debug(label, states);
+
+    // Apply final grid visibility first (still covered by loader)
+    applyStates(states);
+
+    if(cache) writeCache(states,resolvedEmail);
+
+    // ATOMIC: build bubbles/icons/etc before revealing
+    // Add a couple rAFs so display changes are measurable for placement
+    requestAnimationFrame(()=>{
+      requestAnimationFrame(()=>{
+        prepareAtomicUI()
+          .catch(()=>{})
+          .finally(()=>{
+            // Single reveal moment
+            hideLoader();
+            window.dispatchEvent(new CustomEvent('um:dashboard-commit', { detail: { states, label, email: resolvedEmail } }));
+            end();
+          });
+      });
+    });
+  };
+
   const startUserResolution = (attempt=1, maxAttempts=3)=>{
     try{
       resolveUserContext().then(ctx=>{
@@ -999,15 +1006,11 @@ background-clip: padding-box !important;
           if(typeof clearSessionCaches==="function") clearSessionCaches("dashboard user switch");
         }
 
-        // If the cached email doesn't match this session, drop the cache so
-        // grids can't be borrowed from another user. If it matches, reuse it
-        // while we wait for Supabase to respond.
+        // If cache doesn't match current user, drop it
         if(cached?.states){
-          if(cached.email && cached.email===email){
-            applyTemp(cached.states, "Applying cached grid states for user");
-          }else{
+          if(!(cached.email && cached.email===email)){
             sessionStorage.removeItem(CACHE_KEY);
-            cached=null; // prevent stale cache from being reused in fallbacks
+            cached=null;
           }
         }
 
@@ -1016,7 +1019,6 @@ background-clip: padding-box !important;
           const targetEmail=(resolvedEmail||"").toLowerCase();
           if(!targetEmail) return;
 
-          // Always reset before minting to avoid ever reusing a prior user's token.
           if(typeof clearCachedCWT==="function"){clearCachedCWT(label||"dashboard force refresh");}
           if(typeof clearSessionCaches==="function"){clearSessionCaches(label||"dashboard force refresh");}
 
@@ -1026,17 +1028,16 @@ background-clip: padding-box !important;
             await ensureFreshToken(resolvedEmail);
           }
           if((window.__U?.cwt_email||"").toLowerCase()!==targetEmail){
-            clearCachedCWT("dashboard token email mismatch");
+            if(typeof clearCachedCWT==="function") clearCachedCWT("dashboard token email mismatch");
             throw new Error("dashboard token email mismatch");
           }
           if(!window.__U?.cwt){
-            clearCachedCWT("dashboard missing cwt");
+            if(typeof clearCachedCWT==="function") clearCachedCWT("dashboard missing cwt");
             throw new Error("dashboard missing cwt");
           }
         };
 
         const doFetch=async(attempt=1)=>{
-          // Always mint a fresh token for the resolved email before sending the request.
           await refreshDashboardToken(attempt===1?"dashboard initial fetch":"dashboard retry fetch");
 
           const headers=new Headers({"Content-Type":"application/json"});
@@ -1046,8 +1047,6 @@ background-clip: padding-box !important;
           headers.set("cache-control","no-store");
           const res=await fetcher("https://oomcxsfikujptkfsqgzi.supabase.co/functions/v1/fetch-profiles",init);
 
-          // If the edge rejects with an email mismatch, clear and retry once
-          // with a freshly minted token for the resolved email.
           if(attempt===1 && res.status===403){
             try{
               const body=await res.clone().json();
@@ -1057,78 +1056,73 @@ background-clip: padding-box !important;
               }
             }catch(err){console.warn("[dashboard] mismatch retry check failed",err);}
           }
-
           return res;
         };
 
         doFetch()
-        .then(r=>r.json())
-        .then(res=>{
-          console.debug("Returned JSON →",res);
-          const data = res.data || res; // accept either shape
-          const error = res.error;
-          if(error||!data){
+          .then(r=>r.json())
+          .then(res=>{
+            console.debug("Returned JSON →",res);
+            const data = res.data || res;
+            const error = res.error;
+
+            if(error||!data){
+              const cachedStates=cached?.states;
+              cached=null;
+              sessionStorage.removeItem(CACHE_KEY);
+              const fallbackStates=cachedStates||showResumeFallback();
+              applyFinal(fallbackStates,"Final grid state (error/empty response)",false);
+              return;
+            }
+
+            const normalizedData = { ...data };
+            const startedLesson =
+              Number(normalizedData.in_progress_count || 0) > 0 ||
+              Number(normalizedData.completed_count || 0) > 0 ||
+              Number(normalizedData.completed_node_count || 0) > 0 ||
+              Boolean(normalizedData.has_completed_node);
+            if(typeof normalizedData.has_started_lesson !== 'boolean'){
+              normalizedData.has_started_lesson = startedLesson;
+            }
+
+            window.__U = window.__U || {};
+            window.__U.dashboard_profile = normalizedData;
+
+            window.dispatchEvent(new CustomEvent('um:dashboard-profile', { detail: normalizedData }));
+            window.dispatchEvent(new CustomEvent('um:dashboard-hydrated', { detail: normalizedData }));
+
+            const inProgress        = Number(data.in_progress_count||0);
+            const certCount         = Number(data.User_CertificateEnrollments||0);
+            const completedNodes    = Number(data.completed_node_count||0);
+
+            const hasCompletedCert =
+              !!(data.has_completed_cert) ||
+              Number(data.completed_cert_count || 0) > 0;
+
+            const hasCompletedNode =
+              !!(data.has_completed_node) ||
+              completedNodes > 0;
+
+            const states={
+              grid1: (inProgress === 0),
+              grid2: inProgress >= 1,
+              grid3: hasCompletedCert,
+              grid4: certCount >= 1,
+              grid5: hasCompletedNode || hasCompletedCert,
+            };
+
+            if(!Object.values(states).some(Boolean)) states.grid1=true;
+
+            applyFinal(states,"Final grid state (Supabase)",true);
+          })
+          .catch(e=>{
+            console.error("❌ Fetch failed:",e);
             const cachedStates=cached?.states;
             cached=null;
             sessionStorage.removeItem(CACHE_KEY);
             const fallbackStates=cachedStates||showResumeFallback();
-            applyFinal(fallbackStates,"Final grid state (error/empty response)",false);
-            return;
-          }
-
-          const normalizedData = { ...data };
-          const startedLesson =
-            Number(normalizedData.in_progress_count || 0) > 0 ||
-            Number(normalizedData.completed_count || 0) > 0 ||
-            Number(normalizedData.completed_node_count || 0) > 0 ||
-            Boolean(normalizedData.has_completed_node);
-          if(typeof normalizedData.has_started_lesson !== 'boolean'){
-            normalizedData.has_started_lesson = startedLesson;
-          }
-          window.__U = window.__U || {};
-          window.__U.dashboard_profile = normalizedData;
-          window.dispatchEvent(new CustomEvent('um:dashboard-profile', { detail: normalizedData }));
-          // NEW: hydration signal (safe no-op for older listeners)
-          window.dispatchEvent(new CustomEvent('um:dashboard-hydrated', { detail: normalizedData }));
-
-          const inProgress        = Number(data.in_progress_count||0);
-          const completed         = Number(data.completed_count||0); // legacy fallback
-          const certCount         = Number(data.User_CertificateEnrollments||0);
-          const completedNodes    = Number(data.completed_node_count||0);
-
-          // NEW: status-based completion from User_CertificateEnrollment
-          // (Edge function should return has_completed_cert and/or completed_cert_count)
-          const hasCompletedCert =
-            !!(data.has_completed_cert) ||
-            Number(data.completed_cert_count || 0) > 0;
-
-          const hasCompletedNode =
-            !!(data.has_completed_node) ||
-            completedNodes > 0;
-
-          const states={
-            grid1: (inProgress === 0),
-            grid2: inProgress >= 1,
-            grid3: hasCompletedCert,
-            grid4: certCount >= 1,
-            grid5: hasCompletedNode || hasCompletedCert,
-          };
-
-          if(!Object.values(states).some(Boolean)) states.grid1=true;
-
-          applyFinal(states,"Final grid state (Supabase)");
-
-          // Re-run bubbleization after showing grids
-          window.dispatchEvent(new CustomEvent('@softr/page-content-loaded'));
-        })
-        .catch(e=>{
-          console.error("❌ Fetch failed:",e);
-          const cachedStates=cached?.states;
-          cached=null;
-          sessionStorage.removeItem(CACHE_KEY);
-          const fallbackStates=cachedStates||showResumeFallback();
-          applyFinal(fallbackStates,"Final grid state (fetch failed)",false);
-        });
+            applyFinal(fallbackStates,"Final grid state (fetch failed)",false);
+          });
       });
     }catch(e){
       console.error("❌ toggleGridsUnified crashed:",e);
@@ -1166,21 +1160,19 @@ background-clip: padding-box !important;
    if(hasRun || !softrReady) return;
    hasRun=true;
    waitForReady().then(()=>{
-     console.log("⚡ Universio grids initializing");
+     console.log("⚡ Universio grids initializing (atomic)");
      toggleGridsUnified();
    });
  };
 
  const markSoftrReady=()=>{ softrReady=true; runOnce(); };
 
-window.addEventListener("softr:pageLoaded",markSoftrReady,{once:true});
-/* Optional: also listen to Softr's other load event without removing yours */
-window.addEventListener("@softr/page-content-loaded",markSoftrReady,{once:true});
-document.addEventListener("DOMContentLoaded",()=>{ setTimeout(markSoftrReady, 60); },{once:true});
-// In case the events above fired before this script executed, run after a short tick.
-if (document.readyState !== 'loading') {
-  setTimeout(markSoftrReady, 80);
-}
+ window.addEventListener("softr:pageLoaded",markSoftrReady,{once:true});
+ window.addEventListener("@softr/page-content-loaded",markSoftrReady,{once:true});
+ document.addEventListener("DOMContentLoaded",()=>{ setTimeout(markSoftrReady, 60); },{once:true});
+ if (document.readyState !== 'loading') {
+   setTimeout(markSoftrReady, 80);
+ }
 })();
 
 // 6b) EMPTY STATE WATCHER → REFRESH GRID VISIBILITY
