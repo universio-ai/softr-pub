@@ -9,6 +9,7 @@
 //    • Analytics push
 //  ==========================================
 console.log("Nov 20 2025, 14:16 UTC");
+
 // 1) GRADIENT + RED SCRUB BASE
 (function injectBaseGradients(){
   const css = `
@@ -146,7 +147,7 @@ new MutationObserver(run).observe(document.getElementById('page-content')||docum
 :root{--um-bbl-bg:#fff;--um-bbl-fg:#0F1222;--um-bbl-radius:9999px;--um-bbl-pad-y:10px;--um-bbl-pad-x:14px;--um-bbl-border:1px solid rgba(15,18,34,.10);--um-bbl-weight:400;--um-bbl-size:clamp(14px,0.95rem,16px);}
 @keyframes umBubbleIn{0%{opacity:0;transform:translateY(4px)scale(.98)}60%{opacity:.98;transform:translateY(0)scale(1)}100%{opacity:1}}
 .uni-bubble.tutor.um-section,.uni-bubble.tutor.um-dash-hello{
- display:inline-flex!important;align-items:center;gap:.4rem;background:var(--um-bbl-bg)!important;color:var(--um-bbl-fg)!important;
+ display:inline-flex;align-items:center;gap:.4rem;background:var(--um-bbl-bg)!important;color:var(--um-bbl-fg)!important;
  border-radius:var(--um-bbl-radius)!important;padding:var(--um-bbl-pad-y) var(--um-bbl-pad-x)!important;
  border:var(--um-bbl-border)!important;line-height:1.45!important;font-weight:var(--um-bbl-weight);font-size:var(--um-bbl-size);
  width:fit-content!important;max-width:92vw!important;white-space:nowrap!important;animation:umBubbleIn 420ms ease-out both;
@@ -204,8 +205,8 @@ const TARGETS=[
  ]},
  {selectors:['#grid2'],textMatch:/(Pick\s*up|Resume)/i,variants:[
    'Ready to pick up where you left off?',
-   'Ready to resume one of these?',
-   'Ready to return to one of these courses?',
+   'Ready to resume here?',
+   'Ready to continue?',
    'All set to pick up from here?'
  ]},
  {selectors:['#grid3'],textMatch:/Completed 👌/i},
@@ -263,8 +264,20 @@ const EXPLORE_SUPPRESS_KEY = 'um.dashboard.explore.suppressed';
 const EXPLORE_VARIANT_KEY = 'um.dashboard.explore.variant';
 const EXPLORE_PENDING_KEY = 'um.dashboard.explore.pending';
 const DAY_MS = 24 * 60 * 60 * 1000;
+
 let hello = null, trial = null, explore = null, host = null, retryCount = 0, maxRetries = 60, hydrated = false;
 let gridObserver = null, pendingCheck = null;
+
+// NEW: explore is existence-gated (no CSS gating)
+let exploreEligible = null;
+let exploreEligibilityResolved = false;
+
+function purgeExploreEverywhere(){
+  try{
+    document.querySelectorAll('.um-dash-explore').forEach(n=>n.remove());
+  }catch{}
+  explore = null;
+}
 
 function toFirst(s){return String(s||'').trim().split(/\s+/)[0]||'';}
 function fromEmailPrefix(e){
@@ -286,6 +299,13 @@ function getUserEmail(){
   const email = u.email || u.softr_user_email || u.primary_email || window.__U?.current_email || null;
   return typeof email === 'string' ? email.trim().toLowerCase() : null;
 }
+function lessonSignalsReady(){
+  const p = window.__U?.dashboard_profile || {};
+  if (typeof p.has_started_lesson === 'boolean') return true;
+  return ['in_progress_count','completed_count','completed_node_count','has_completed_node']
+    .some(k => p[k] !== undefined && p[k] !== null);
+}
+
 function safeParseDate(value){
   if(!value) return null;
   const ts = Date.parse(value);
@@ -362,7 +382,7 @@ function suppressExplore(reason){
     return;
   }
   writeLocalFlag(EXPLORE_SUPPRESS_KEY, email, { reason, ts: Date.now() });
-  if(explore?.parentNode) explore.parentNode.removeChild(explore);
+  purgeExploreEverywhere();
 }
 function pickExploreVariant(email){
   if(!EXPLORE_VARIANTS.length) return '';
@@ -387,6 +407,7 @@ function shouldShowExplore(){
   if(ageMs == null) return false;
   return ageMs <= 7 * DAY_MS;
 }
+
 let exploreClickWatcherInstalled=false;
 function isExploreMenuItem(target){
   if(!target) return false;
@@ -407,21 +428,42 @@ function installExploreClickWatcher(){
     suppressExplore('explore_clicked');
   },{capture:true});
 }
+
+// Wait until dashboard_profile is present (or times out) so eligibility is deterministic.
 function waitForExploreEligibility(timeoutMs=900){
-  if(!getUserEmail()) return Promise.resolve();
-  if(resolveAccountAgeMs() != null) return Promise.resolve();
+  // If we already have enough to decide, return immediately.
+    if(getUserEmail() && resolveAccountAgeMs() != null && lessonSignalsReady()) return Promise.resolve();
+
   return new Promise(resolve=>{
     let settled=false;
     const done=()=>{
       if(settled) return;
       settled=true;
       window.removeEventListener('um:dashboard-profile',done);
+      window.removeEventListener('um:dashboard-hydrated',done);
       resolve();
     };
     window.addEventListener('um:dashboard-profile',done,{once:true});
+    window.addEventListener('um:dashboard-hydrated',done,{once:true});
     setTimeout(done, timeoutMs);
   });
 }
+
+function resolveExploreEligibilityIfReady(){
+  if(exploreEligibilityResolved) return;
+
+  const email = getUserEmail();
+  const ageMs = resolveAccountAgeMs();
+
+  // Must have lesson signals, otherwise we can lock false too early
+  if(!email || ageMs == null || !lessonSignalsReady()) return;
+
+  exploreEligible = shouldShowExplore();
+  exploreEligibilityResolved = true;
+
+  if(!exploreEligible) purgeExploreEverywhere();
+}
+
 function pickRotation(list, fallback){
   if(!Array.isArray(list)||!list.length) return fallback||'';
   return list[Math.floor(Math.random()*list.length)];
@@ -481,6 +523,7 @@ function topGrid(){
   return pick;
 }
 function findHeading(g){return g?.querySelector('h1,h2,h3,h4')||null;}
+
 function ensureHello(){
   if(hello) return hello;
   hello=document.createElement('div');
@@ -511,23 +554,28 @@ function ensureTrial(){
   trial.style.visibility='hidden';
   return trial;
 }
+
+// NEW: Explore bubble is only created if eligible (no CSS gating / no dataset switching).
 function ensureExplore(){
   if(explore) return explore;
+  if(!exploreEligibilityResolved || exploreEligible !== true) return null;
+
   explore=document.createElement('div');
   explore.className='uni-bubble tutor um-section um-dash-explore';
   explore.dataset.umPreinserted='1';
   explore.style.margin='0 0 12px 0';
-  explore.style.display='none';
-  explore.style.opacity='0';
+  explore.style.setProperty('display','none','important');
+  explore.style.setProperty('visibility','hidden','important');
+  explore.style.setProperty('opacity','0','important');
   explore.style.transition='opacity .4s ease';
 
-  // ⬇️ SET TEXT IMMEDIATELY (NO EMPTY STATE)
   const email = getUserEmail();
   explore.textContent = pickExploreVariant(email);
 
   explore.addEventListener('click',()=>suppressExplore('dismissed'));
   return explore;
 }
+
 function revealHello(){
   if(!hello||hydrated) return;
   hydrated=true;
@@ -541,13 +589,11 @@ function revealTrial(){
 }
 function revealExplore(){
   if(!explore) return;
-  if(explore.style.display==='none'){
-    explore.style.display='inline-flex';
-  }
-  requestAnimationFrame(()=>{
-    explore.style.opacity='1';
-  });
+  explore.style.setProperty('display','inline-flex','important');
+  explore.style.setProperty('visibility','visible','important');
+  requestAnimationFrame(()=>{ explore.style.setProperty('opacity','1','important'); });
 }
+
 function placeHello(g){
   if(!g) return false;
   const h=findHeading(g);
@@ -563,16 +609,16 @@ function placeHello(g){
     h.parentNode.insertBefore(t,h);
   }
 
-  const ex=ensureExplore();
-  if(ex.parentNode!==h.parentNode){
-    h.parentNode.insertBefore(ex,h);
-  }
-
   placeTrial(h);
+
+  // NEW: explore is inserted only if eligible (and only after eligibility is resolved).
+  placeExplore(h);
+
   host=g;
   revealHello();
   return true;
 }
+
 let trialRetryCount=0, maxTrialRetries=20;
 function placeTrial(h){
   const status=resolveTrialStatus();
@@ -602,19 +648,31 @@ function placeTrial(h){
   if(e.textContent!==text) e.textContent=text;
   revealTrial();
 }
+
 function placeExplore(h){
   if(!h||!h.parentNode) return;
 
-  if(!shouldShowExplore()){
-    if(explore){
-      explore.style.opacity='0';
-      explore.style.display='none';
-    }
+  // If eligibility not resolved yet, do nothing (prevents premature insertion).
+  if(!exploreEligibilityResolved){
     return;
   }
 
+  // If not eligible, ensure Explore bubble does not exist anywhere.
+  if(exploreEligible !== true){
+    purgeExploreEverywhere();
+    return;
+  }
+
+  // Eligible: insert + reveal.
+  const ex = ensureExplore();
+  if(!ex) return;
+
+  if(ex.parentNode!==h.parentNode){
+    h.parentNode.insertBefore(ex,h);
+  }
   revealExplore();
 }
+
 function refresh(){
   const g=topGrid();
   if(!g){ return; }
@@ -627,6 +685,7 @@ function refresh(){
     }
   }
 }
+
 function tryUntilVisible(){
   refresh();
   const bubble=hello;
@@ -653,20 +712,36 @@ function watchGrids(){
     gridObserver.observe(el,{attributes:true,attributeFilter:['style','class']});
   });
 }
+
 let booted=false;
 function boot(){
   if(booted) return; booted=true;
   installExploreClickWatcher();
+
   const start=()=>{
+    // Resolve eligibility ONCE at startup (deterministic, no CSS toggling).
+    resolveExploreEligibilityIfReady();
+
     refresh();
     watchGrids();
     tryUntilVisible();
     window.addEventListener('scroll',refresh,{passive:true});
     window.addEventListener('resize',refresh,{passive:true});
-    window.addEventListener('um:dashboard-profile',()=>scheduleVisibilityCheck(0));
+
+    window.addEventListener('um:dashboard-profile',()=>{
+      resolveExploreEligibilityIfReady();
+      scheduleVisibilityCheck(0); // forces placeExplore after it becomes eligible
+    });
+    
     // re-inject after Softr refreshes or your gating reruns
-    window.addEventListener('@softr/page-content-loaded',()=>{watchGrids(); scheduleVisibilityCheck(60);});
+    window.addEventListener('@softr/page-content-loaded',()=>{
+      watchGrids();
+      // Do not recompute eligibility; just re-render bubbles.
+      scheduleVisibilityCheck(60);
+    });
   };
+
+  // Wait briefly for dashboard_profile so eligibility is accurate (but do not block forever).
   waitForExploreEligibility().then(start);
 }
 
@@ -868,12 +943,12 @@ background-clip: padding-box !important;
     applyFinal(showFreshUser(),"Final grid state (timeout; not cached)",false);
   },12000);
 
-// Keep all grids hidden until we have a final decision.
-// This avoids the grid1 flash for returning users.
-applyTemp(
-  { grid1:false, grid2:false, grid3:false, grid4:false, grid5:false },
-  "Keeping grids hidden while resolving user"
-);
+  // Keep all grids hidden until we have a final decision.
+  // This avoids the grid1 flash for returning users.
+  applyTemp(
+    { grid1:false, grid2:false, grid3:false, grid4:false, grid5:false },
+    "Keeping grids hidden while resolving user"
+  );
 
   // Cache is validated against the resolved user; we null it out immediately if
   // it does not belong to the current session to avoid leaking old states into
@@ -1013,6 +1088,8 @@ applyTemp(
           window.__U = window.__U || {};
           window.__U.dashboard_profile = normalizedData;
           window.dispatchEvent(new CustomEvent('um:dashboard-profile', { detail: normalizedData }));
+          // NEW: hydration signal (safe no-op for older listeners)
+          window.dispatchEvent(new CustomEvent('um:dashboard-hydrated', { detail: normalizedData }));
 
           const inProgress        = Number(data.in_progress_count||0);
           const completed         = Number(data.completed_count||0); // legacy fallback
@@ -1064,6 +1141,7 @@ applyTemp(
 
   startUserResolution();
 }
+
 (function(){
  let hasRun=false;
  let softrReady=false;
