@@ -88,9 +88,19 @@ html,body{
   const NAV_ID="e10d0f66-ec99-43c8-94f1-a44a569bb7ca";
   const NAV_SEL=`[data-block-id="${NAV_ID}"]`;
   const isRGB=(c,r,g,b)=>{const m=(c||'').replace(/\s+/g,'').toLowerCase().match(/^rgba?\((\d+),(\d+),(\d+)/);return !!m&&+m[1]===r&&+m[2]===g&&+m[3]===b;};
+  let scrubPending=false;
+  let scrubTimer=null;
+  let observer=null;
   function scrub(){
     const root=document.getElementById('page-content'); if(!root)return;
-    root.querySelectorAll('*').forEach(el=>{
+    const candidates=root.querySelectorAll(
+      'section.sw-background-color-f3f5f8,'+
+      'header.sw-background-color-f3f5f8,'+
+      '.sw-background-color-f3f5f8,'+
+      '[style*="background"],'+
+      '[style*="background-color"]'
+    );
+    candidates.forEach(el=>{
       if(el.closest(NAV_SEL))return;
       const cs=getComputedStyle(el);
       if(cs.backgroundImage!=='none')return;
@@ -99,11 +109,25 @@ html,body{
         el.style.setProperty('background-color','transparent','important');
       }
     });
+    if(observer){
+      observer.disconnect();
+      observer=null;
+    }
   }
-  const run=()=>scrub();
+  const scheduleScrub=()=>{
+    if(scrubPending)return;
+    scrubPending=true;
+    scrubTimer=setTimeout(()=>{
+      scrubPending=false;
+      scrubTimer=null;
+      scrub();
+    },150);
+  };
+  const run=()=>scheduleScrub();
   run();
   window.addEventListener('@softr/page-content-loaded',run);
-  new MutationObserver(run).observe(document.getElementById('page-content')||document.documentElement,{childList:true,subtree:true,attributes:true});
+  observer=new MutationObserver(run);
+  observer.observe(document.getElementById('page-content')||document.documentElement,{childList:true,subtree:true,attributes:true});
 })();
 
 // 4) ELIGIBLE ICONS + ALIGNMENT
