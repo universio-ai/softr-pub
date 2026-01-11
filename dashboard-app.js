@@ -330,6 +330,7 @@ const EXPLORE_VARIANTS = [
 const EXPLORE_SUPPRESS_KEY = 'um.dashboard.explore.suppressed';
 const EXPLORE_VARIANT_KEY = 'um.dashboard.explore.variant';
 const EXPLORE_PENDING_KEY = 'um.dashboard.explore.pending';
+const EXPLORE_SEEN_KEY = 'um.dashboard.explore.seen';
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 let hello = null, trial = null, explore = null, host = null, retryCount = 0, maxRetries = 60, hydrated = false;
@@ -410,6 +411,11 @@ function readLocalFlag(base, email){
   if(!key) return false;
   try{ return !!localStorage.getItem(key); }catch{ return false; }
 }
+function readLocalPayload(base, email){
+  const key = storageKey(base, email);
+  if(!key) return null;
+  try{ return JSON.parse(localStorage.getItem(key) || 'null'); }catch{ return null; }
+}
 function writeLocalFlag(base, email, payload){
   const key = storageKey(base, email);
   if(!key) return false;
@@ -438,6 +444,10 @@ function suppressExplore(reason){
   writeLocalFlag(EXPLORE_SUPPRESS_KEY, email, { reason, ts: Date.now() });
   purgeExploreEverywhere();
 }
+function markExploreSeen(email){
+  if(!email) return;
+  writeLocalFlag(EXPLORE_SEEN_KEY, email, { ts: Date.now() });
+}
 function pickExploreVariant(email){
   if(!EXPLORE_VARIANTS.length) return '';
   const key = storageKey(EXPLORE_VARIANT_KEY, email) || EXPLORE_VARIANT_KEY;
@@ -455,7 +465,13 @@ function shouldShowExplore(){
   const email = getUserEmail();
   if(email) applyPendingSuppression(email);
   if(!email) return false;
-  if(readLocalFlag(EXPLORE_SUPPRESS_KEY, email)) return false;
+  const suppression = readLocalPayload(EXPLORE_SUPPRESS_KEY, email);
+  if(suppression){
+    if(suppression.reason !== 'explore_clicked' || readLocalFlag(EXPLORE_SEEN_KEY, email)){
+      return false;
+    }
+    try{ localStorage.removeItem(storageKey(EXPLORE_SUPPRESS_KEY, email)); }catch{}
+  }
   if(!resolveHasStartedLesson()) return false;
   const ageMs = resolveAccountAgeMs();
   if(ageMs == null) return false;
@@ -644,6 +660,7 @@ function revealExplore(){
   explore.style.setProperty('display','inline-flex','important');
   explore.style.setProperty('visibility','visible','important');
   requestAnimationFrame(()=>{ explore.style.setProperty('opacity','1','important'); });
+  markExploreSeen(getUserEmail());
 }
 
 function placeHello(g){
