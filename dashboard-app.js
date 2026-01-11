@@ -452,13 +452,16 @@ function pickExploreVariant(email){
   if(!EXPLORE_VARIANTS.length) return '';
   const key = storageKey(EXPLORE_VARIANT_KEY, email) || EXPLORE_VARIANT_KEY;
   let stored = null;
-  try{ stored = sessionStorage.getItem(key); }catch{}
-  const idx = Number(stored);
-  if(Number.isInteger(idx) && idx >= 0 && idx < EXPLORE_VARIANTS.length){
-    return EXPLORE_VARIANTS[idx];
+  try{ stored = JSON.parse(localStorage.getItem(key) || 'null'); }catch{}
+  const storedIdx = stored && typeof stored === 'object' ? Number(stored.idx) : Number(stored);
+  const storedTs = stored && typeof stored === 'object' ? Number(stored.ts) : null;
+  if(Number.isInteger(storedIdx) && storedIdx >= 0 && storedIdx < EXPLORE_VARIANTS.length){
+    if(storedTs && (Date.now() - storedTs) < DAY_MS){
+      return EXPLORE_VARIANTS[storedIdx];
+    }
   }
   const picked = Math.floor(Math.random() * EXPLORE_VARIANTS.length);
-  try{ sessionStorage.setItem(key, String(picked)); }catch{}
+  try{ localStorage.setItem(key, JSON.stringify({ idx: picked, ts: Date.now() })); }catch{}
   return EXPLORE_VARIANTS[picked];
 }
 function shouldShowExplore(){
