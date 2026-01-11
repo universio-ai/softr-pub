@@ -463,6 +463,13 @@ function shouldShowExplore(){
 }
 
 let exploreClickWatcherInstalled=false;
+function isExploreBubbleVisible(){
+  const ex = explore || document.querySelector('.um-dash-explore');
+  if(!ex) return false;
+  const cs = getComputedStyle(ex);
+  if(cs.display==='none'||cs.visibility==='hidden'||Number(cs.opacity)===0) return false;
+  return ex.offsetParent !== null;
+}
 function isExploreMenuItem(target){
   if(!target) return false;
   const el = target.closest('a,button,[role="menuitem"],[role="link"]');
@@ -479,6 +486,8 @@ function installExploreClickWatcher(){
   exploreClickWatcherInstalled=true;
   document.addEventListener('click',(event)=>{
     if(!isExploreMenuItem(event.target)) return;
+    if(!exploreEligibilityResolved || exploreEligible !== true) return;
+    if(!isExploreBubbleVisible()) return;
     suppressExplore('explore_clicked');
   },{capture:true});
 }
