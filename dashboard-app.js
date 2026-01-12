@@ -193,6 +193,105 @@ window.addEventListener('@softr/page-content-loaded',run);
 new MutationObserver(run).observe(document.getElementById('page-content')||document.body,{childList:true,subtree:true});
 })();
 
+// 5) GRID2 KEBAB MENU ANCHOR (scroll-hidden)
+(function(){
+'use strict';
+const GRID2_ID = 'grid2';
+const CARD_SELECTOR = '[data-testid="grid-item"]';
+const HIDE_ATTR = 'data-um-scroll-hide-kebab';
+const READY_CLASS = 'um-grid2-kebab-ready';
+const KEBAB_CLASS = 'um-grid2-kebab';
+const STYLE_ID = 'um-grid2-kebab-style';
+let scrollTimer = null;
+let debounceTimer = null;
+
+function injectStyles(){
+  if (document.getElementById(STYLE_ID)) return;
+  const style = document.createElement('style');
+  style.id = STYLE_ID;
+  style.textContent = `
+html[${HIDE_ATTR}="1"] .${KEBAB_CLASS}{opacity:0;pointer-events:none;transform:translateY(4px);}
+#${GRID2_ID} ${CARD_SELECTOR}{position:relative;}
+#${GRID2_ID} .${KEBAB_CLASS}{
+  position:absolute;
+  right:12px;
+  bottom:12px;
+  width:28px;
+  height:22px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:3px;
+  background:rgba(255,255,255,.75);
+  border:1px solid rgba(0,0,0,.06);
+  border-radius:999px;
+  box-shadow:0 4px 10px rgba(15,18,34,.08);
+  opacity:0;
+  transform:translateY(6px);
+  transition:opacity .2s ease, transform .2s ease;
+  z-index:2;
+}
+#${GRID2_ID}.${READY_CLASS} .${KEBAB_CLASS}{opacity:.75;transform:translateY(0);}
+#${GRID2_ID} .${KEBAB_CLASS} span{
+  width:4px;
+  height:4px;
+  border-radius:999px;
+  background:#cbd0d6;
+  display:block;
+}
+`;
+  document.head.appendChild(style);
+}
+
+function ensureKebab(card){
+  if (!card || card.querySelector(`.${KEBAB_CLASS}`)) return;
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = KEBAB_CLASS;
+  button.setAttribute('aria-label', 'Course options');
+  button.setAttribute('tabindex', '-1');
+  button.innerHTML = '<span></span><span></span><span></span>';
+  button.addEventListener('click', (event)=>{
+    event.preventDefault();
+    event.stopPropagation();
+  });
+  card.appendChild(button);
+}
+
+function decorate(){
+  const grid = document.getElementById(GRID2_ID);
+  if (!grid) return;
+  injectStyles();
+  grid.querySelectorAll(CARD_SELECTOR).forEach(ensureKebab);
+  grid.classList.add(READY_CLASS);
+}
+
+function setScrollHidden(isHidden){
+  document.documentElement.setAttribute(HIDE_ATTR, isHidden ? '1' : '0');
+}
+
+function handleScroll(){
+  setScrollHidden(true);
+  if (scrollTimer) window.clearTimeout(scrollTimer);
+  scrollTimer = window.setTimeout(()=>{
+    setScrollHidden(false);
+  }, 220);
+}
+
+function boot(){
+  decorate();
+  handleScroll();
+  window.addEventListener('scroll', handleScroll, { passive: true });
+  window.addEventListener('@softr/page-content-loaded', decorate);
+  new MutationObserver(()=>{
+    if (debounceTimer) window.clearTimeout(debounceTimer);
+    debounceTimer = window.setTimeout(decorate, 120);
+  }).observe(document.getElementById('page-content') || document.body, { childList: true, subtree: true });
+}
+
+(document.readyState !== 'loading') ? boot() : document.addEventListener('DOMContentLoaded', boot);
+})();
+
 // 5) DASHBOARD RAIL + BUBBLES
 (function injectBubbleTokens(){
   const css = `
