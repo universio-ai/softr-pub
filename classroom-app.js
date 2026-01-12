@@ -4233,8 +4233,17 @@ injectStyles(`
             } catch {}
         }
 
-        function getFirstClassroomOpenKey() {
-            return buildUserStorageKey(FIRST_CLASSROOM_OPEN_KEY, userId, resolveUserEmail());
+        function getFirstClassroomOpenKeys() {
+            const email = resolveUserEmail();
+            const idKey = userId ? buildUserStorageKey(FIRST_CLASSROOM_OPEN_KEY, userId, "") : "";
+            const emailKey = email ? buildUserStorageKey(FIRST_CLASSROOM_OPEN_KEY, "", email) : "";
+            const baseKey = FIRST_CLASSROOM_OPEN_KEY;
+            return {
+                idKey,
+                emailKey,
+                baseKey,
+                hasIdentity: Boolean(userId || email),
+            };
         }
 
         function getFirstClassroomSessionKey() {
@@ -4242,7 +4251,11 @@ injectStyles(`
         }
 
         function hasSeenFirstClassroomWelcome() {
-            return Boolean(readLocalStorage(getFirstClassroomOpenKey()));
+            const keys = getFirstClassroomOpenKeys();
+            if (keys.hasIdentity) {
+                return Boolean((keys.idKey && readLocalStorage(keys.idKey)) || (keys.emailKey && readLocalStorage(keys.emailKey)));
+            }
+            return Boolean(readLocalStorage(keys.baseKey));
         }
 
         function hasStartedAnyLesson() {
@@ -4251,7 +4264,11 @@ injectStyles(`
         }
 
         function markFirstClassroomWelcomeSeen() {
-            writeLocalStorage(getFirstClassroomOpenKey(), new Date().toISOString());
+            const keys = getFirstClassroomOpenKeys();
+            const stamp = new Date().toISOString();
+            if (keys.idKey) writeLocalStorage(keys.idKey, stamp);
+            if (keys.emailKey) writeLocalStorage(keys.emailKey, stamp);
+            if (!keys.hasIdentity) writeLocalStorage(keys.baseKey, stamp);
         }
 
         function markFirstClassroomSessionStarted() {
