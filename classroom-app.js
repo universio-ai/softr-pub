@@ -4242,7 +4242,8 @@ injectStyles(`
                 idKey,
                 emailKey,
                 baseKey,
-                hasIdentity: Boolean(userId || email),
+                hasId: Boolean(userId),
+                hasEmail: Boolean(email),
             };
         }
 
@@ -4252,9 +4253,8 @@ injectStyles(`
 
         function hasSeenFirstClassroomWelcome() {
             const keys = getFirstClassroomOpenKeys();
-            if (keys.hasIdentity) {
-                return Boolean((keys.idKey && readLocalStorage(keys.idKey)) || (keys.emailKey && readLocalStorage(keys.emailKey)));
-            }
+            if (keys.hasId) return Boolean(keys.idKey && readLocalStorage(keys.idKey));
+            if (keys.hasEmail) return Boolean(keys.emailKey && readLocalStorage(keys.emailKey));
             return Boolean(readLocalStorage(keys.baseKey));
         }
 
@@ -4266,9 +4266,15 @@ injectStyles(`
         function markFirstClassroomWelcomeSeen() {
             const keys = getFirstClassroomOpenKeys();
             const stamp = new Date().toISOString();
-            if (keys.idKey) writeLocalStorage(keys.idKey, stamp);
-            if (keys.emailKey) writeLocalStorage(keys.emailKey, stamp);
-            if (!keys.hasIdentity) writeLocalStorage(keys.baseKey, stamp);
+            if (keys.hasId && keys.idKey) {
+                writeLocalStorage(keys.idKey, stamp);
+                return;
+            }
+            if (keys.hasEmail && keys.emailKey) {
+                writeLocalStorage(keys.emailKey, stamp);
+                return;
+            }
+            writeLocalStorage(keys.baseKey, stamp);
         }
 
         function markFirstClassroomSessionStarted() {
