@@ -507,6 +507,7 @@ function isExploreMenuItem(target){
   const hrefMatch = /\/explore\b/i.test(href) || /[?&]explore\b/i.test(href);
   return labelMatch || hrefMatch;
 }
+
 function installExploreClickWatcher(){
   if(exploreClickWatcherInstalled) return;
   exploreClickWatcherInstalled=true;

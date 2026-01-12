@@ -1,5 +1,5 @@
 (function () {
-  const UPDATED_AT = "2025-11-17T02:15:34Z";
+  const UPDATED_AT = "2025-11-17T03:45:12Z";
   console.log(`[UNI] classroom-app updated ${UPDATED_AT} (runtime ${new Date().toISOString()})`);
 
   const CLASSROOM_WRAPPER_ID = "universio-classroom";
@@ -146,6 +146,8 @@
     const CREATE_SUMMARY_URL = "https://oomcxsfikujptkfsqgzi.supabase.co/functions/v1/create-summary";
 
     const LAST_EMAIL_KEY = "uni:lastEmail";
+    const FIRST_CLASSROOM_OPEN_KEY = "universio:firstClassroomOpen:v1";
+    const FIRST_CLASSROOM_SESSION_STARTED_KEY = "universio:classroomFirstSessionStarted:v1";
 
     function rememberUserEmail(email) {
         const clean = String(email || "").trim().toLowerCase();
@@ -169,6 +171,28 @@
             } catch {}
         }
         return cached;
+    }
+
+    function buildUserStorageKey(baseKey, userId, email) {
+        const rawId = String(userId || "").trim();
+        if (rawId) return `${baseKey}:${rawId}`;
+        const cleanEmail = String(email || "").trim().toLowerCase();
+        if (cleanEmail) return `${baseKey}:${cleanEmail}`;
+        return baseKey;
+    }
+
+    function readLocalStorage(key) {
+        try {
+            return localStorage.getItem(key);
+        } catch {
+            return null;
+        }
+    }
+
+    function writeLocalStorage(key, value) {
+        try {
+            localStorage.setItem(key, value);
+        } catch {}
     }
 
     function resolveUserEmail() {
@@ -1832,6 +1856,19 @@ window.addEventListener("universio:bootstrapped", () => {
             } catch {}
         }
 
+        async function resolveUserHash() {
+            if (window.__uniUserHash) return window.__uniUserHash;
+            const identifier = String(resolveUserEmail() || userId || "").trim().toLowerCase();
+            if (!identifier) return "";
+            try {
+                const hash = await sha256Hex(identifier);
+                window.__uniUserHash = hash;
+                return hash;
+            } catch {
+                return "";
+            }
+        }
+
         // === Uni helpers ===
         const UNI_AVATAR_SRC = "https://assets.softr-files.com/applications/253dc6e8-0de5-4c72-a842-2914f13c3d0f/assets/3869c85d-250a-4c87-8e25-8ca98c84ae50.png";
 
@@ -2541,6 +2578,31 @@ window.addEventListener("universio:bootstrapped", () => {
   /* Lists: also remove trailing space if they end the bubble */
   #${ROOT_ID} .uni-bubble ul:last-child,
   #${ROOT_ID} .uni-bubble ol:last-child { margin-bottom: 0; }
+`);
+
+        injectStyles(`
+  #${ROOT_ID} .uni-welcome-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  #${ROOT_ID} .uni-welcome-action {
+    appearance: none;
+    border: 1px solid var(--bubble-tutor-border);
+    background: #fff;
+    color: #0F1222;
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  #${ROOT_ID} .uni-welcome-action.primary {
+    background: #0F1222;
+    color: #fff;
+    border-color: #0F1222;
+  }
 `);
 
         /* Mic button look */
@@ -4164,6 +4226,98 @@ injectStyles(`
             return bubble;
         }
 
+        function focusChatInput() {
+            try {
+                inputEl?.focus?.();
+                requestAnimationFrame(scrollToBottom);
+            } catch {}
+        }
+
+        function getFirstClassroomOpenKey() {
+            return buildUserStorageKey(FIRST_CLASSROOM_OPEN_KEY, userId, resolveUserEmail());
+        }
+
+        function getFirstClassroomSessionKey() {
+            return buildUserStorageKey(FIRST_CLASSROOM_SESSION_STARTED_KEY, userId, resolveUserEmail());
+        }
+
+        function hasSeenFirstClassroomWelcome() {
+            return Boolean(readLocalStorage(getFirstClassroomOpenKey()));
+        }
+
+        function hasStartedAnyLesson() {
+            const flags = window.__U?.flags || {};
+            return Boolean(flags.has_started || flags.hasStartedAny);
+        }
+
+        function markFirstClassroomWelcomeSeen() {
+            writeLocalStorage(getFirstClassroomOpenKey(), new Date().toISOString());
+        }
+
+        function markFirstClassroomSessionStarted() {
+            writeLocalStorage(getFirstClassroomSessionKey(), new Date().toISOString());
+        }
+
+        function hasFirstClassroomSessionStarted() {
+            return Boolean(readLocalStorage(getFirstClassroomSessionKey()));
+        }
+
+        async function fireClassroomWelcomeShown(source = "local") {
+            const userHash = await resolveUserHash();
+            emitGA("classroom_welcome_shown", {
+                user_hash: userHash || undefined,
+                course_id: graphId || window.__uniGraphId,
+                node_id: nodeId || window.__uniNodeId,
+                plan_tier: window.__U?.profile?.plan_code || window.__U?.profile?.plan_name || undefined,
+                source,
+            });
+        }
+
+        function fireClassroomWelcomeExploreClicked() {
+            emitGA("classroom_welcome_explore_clicked", {
+                course_id: graphId || window.__uniGraphId,
+                node_id: nodeId || window.__uniNodeId,
+            });
+        }
+
+        async function fireClassroomFirstSessionStarted() {
+            if (hasFirstClassroomSessionStarted()) return;
+            markFirstClassroomSessionStarted();
+            const userHash = await resolveUserHash();
+            emitGA("classroom_first_session_started", {
+                user_hash: userHash || undefined,
+                course_id: graphId || window.__uniGraphId,
+                node_id: nodeId || window.__uniNodeId,
+            });
+        }
+
+        function appendWelcomeActions(bubble) {
+            if (!bubble) return;
+            const actions = el("div", { class: "uni-welcome-actions" });
+            const exploreBtn = el("button", { type: "button", class: "uni-welcome-action primary" }, "Explore courses");
+            const continueBtn = el("button", { type: "button", class: "uni-welcome-action" }, "Continue");
+            exploreBtn.addEventListener("click", () => {
+                fireClassroomWelcomeExploreClicked();
+                window.location.href = "/dashboard";
+            });
+            continueBtn.addEventListener("click", () => focusChatInput());
+            actions.append(exploreBtn, continueBtn);
+            bubble.appendChild(actions);
+        }
+
+        async function renderFirstTimeWelcome() {
+            if (hasStartedAnyLesson()) return false;
+            if (hasSeenFirstClassroomWelcome()) return false;
+            const welcomeText =
+                "Excited that you’re trying this out! If this course isn’t for you, you can go back to the Dashboard and hit Explore to find a more relevant course.";
+            const bubble = addMessage("tutor", welcomeText, true);
+            bubble?.classList?.add("uni-welcome");
+            appendWelcomeActions(bubble);
+            markFirstClassroomWelcomeSeen();
+            await fireClassroomWelcomeShown("local");
+            return true;
+        }
+
         function renderQuickCheckCustom(decision, displayText, recordText) {
             if (!decision || !decision.entry) return false;
             const entry = decision.entry;
@@ -4456,6 +4610,7 @@ injectStyles(`
                     `What do you already know about '${moduleName}'?`,
                 ];
                 const variant = firstDiagnosticVariants[Math.floor(Math.random() * firstDiagnosticVariants.length)];
+                await fireClassroomFirstSessionStarted();
                 addMessage("tutor", variant, true);
                 setTimeout(() => safeSaveConversationState("update"), 0);
 
@@ -5848,8 +6003,11 @@ Ready to begin?`,
                                 true
                             );
                         } else {
-                            const greetings = ["Hello, there. 👋", "Hi, welcome back! 🌟", "Hey, glad you’re here. 🚀", "Welcome! Let’s dive in. 🌱"];
-                            addMessage("tutor", greetings[Math.floor(Math.random() * greetings.length)], true);
+                            const didShowWelcome = await renderFirstTimeWelcome();
+                            if (!didShowWelcome) {
+                                const greetings = ["Hello, there. 👋", "Hi, welcome back! 🌟", "Hey, glad you’re here. 🚀", "Welcome! Let’s dive in. 🌱"];
+                                addMessage("tutor", greetings[Math.floor(Math.random() * greetings.length)], true);
+                            }
                             setTimeout(nextPrompt, 400);
                         }
                     }
