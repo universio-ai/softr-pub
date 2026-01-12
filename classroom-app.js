@@ -4235,14 +4235,15 @@ injectStyles(`
 
         function getFirstClassroomOpenKeys() {
             const email = resolveUserEmail();
-            const idKey = userId ? buildUserStorageKey(FIRST_CLASSROOM_OPEN_KEY, userId, "") : "";
+            const activeUserId = window.__uniUserId || getUserId() || userId;
+            const idKey = activeUserId ? buildUserStorageKey(FIRST_CLASSROOM_OPEN_KEY, activeUserId, "") : "";
             const emailKey = email ? buildUserStorageKey(FIRST_CLASSROOM_OPEN_KEY, "", email) : "";
             const baseKey = FIRST_CLASSROOM_OPEN_KEY;
             return {
                 idKey,
                 emailKey,
                 baseKey,
-                hasId: Boolean(userId),
+                hasId: Boolean(activeUserId),
                 hasEmail: Boolean(email),
             };
         }
