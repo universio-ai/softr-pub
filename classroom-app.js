@@ -4305,14 +4305,23 @@ injectStyles(`
             bubble.appendChild(actions);
         }
 
-        async function renderFirstTimeWelcome() {
+        function hasUserMessages() {
+            return conversation.some((msg) => msg?.sender === "user");
+        }
+
+        async function renderFirstTimeWelcome(options = {}) {
             if (hasStartedAnyLesson()) return false;
             if (hasSeenFirstClassroomWelcome()) return false;
             const welcomeText =
                 "Excited that you’re trying this out! If this course isn’t for you, you can go back to the Dashboard and hit Explore to find a more relevant course.";
+            if (conversation.some((msg) => msg?.text === welcomeText)) return false;
             const bubble = addMessage("tutor", welcomeText, true);
             bubble?.classList?.add("uni-welcome");
             appendWelcomeActions(bubble);
+            if (options.prepend && messagesEl?.firstChild && bubble?.parentNode === messagesEl) {
+                messagesEl.insertBefore(bubble, messagesEl.firstChild);
+                conversation = [{ sender: "tutor", text: welcomeText }, ...conversation.filter((m) => m?.text !== welcomeText)];
+            }
             markFirstClassroomWelcomeSeen();
             await fireClassroomWelcomeShown("local");
             return true;
@@ -6010,6 +6019,8 @@ Ready to begin?`,
                             }
                             setTimeout(nextPrompt, 400);
                         }
+                    } else if (!hasUserMessages()) {
+                        await renderFirstTimeWelcome({ prepend: true });
                     }
 
                     // 🧩 Persist initial tutor bubbles once session_id exists
