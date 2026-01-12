@@ -4309,6 +4309,40 @@ injectStyles(`
             return conversation.some((msg) => msg?.sender === "user");
         }
 
+        function repositionWelcomeBubble(bubble, options = {}) {
+            if (!bubble || !messagesEl) return;
+            let reference = null;
+            if (options.beforeQuestion) {
+                reference = Array.from(messagesEl.querySelectorAll(".uni-bubble.tutor")).find((el) => {
+                    if (el === bubble) return false;
+                    return (el.textContent || "").includes("?");
+                });
+            }
+            if (!reference && options.prepend) {
+                reference = messagesEl.firstChild;
+            }
+            if (reference && bubble.parentNode === messagesEl && reference !== bubble) {
+                messagesEl.insertBefore(bubble, reference);
+            }
+        }
+
+        function repositionWelcomeConversation(welcomeText, options = {}) {
+            if (!welcomeText || !Array.isArray(conversation)) return;
+            const existingIndex = conversation.findIndex((msg) => msg?.sender === "tutor" && msg?.text === welcomeText);
+            if (existingIndex === -1) return;
+            const [welcomeEntry] = conversation.splice(existingIndex, 1);
+            let targetIndex = conversation.length;
+            if (options.beforeQuestion) {
+                const questionIndex = conversation.findIndex(
+                    (msg) => msg?.sender === "tutor" && typeof msg?.text === "string" && msg.text.includes("?")
+                );
+                if (questionIndex !== -1) targetIndex = questionIndex;
+            } else if (options.prepend) {
+                targetIndex = 0;
+            }
+            conversation.splice(targetIndex, 0, welcomeEntry);
+        }
+
         async function renderFirstTimeWelcome(options = {}) {
             if (hasStartedAnyLesson()) return false;
             if (hasSeenFirstClassroomWelcome()) return false;
@@ -4318,10 +4352,8 @@ injectStyles(`
             const bubble = addMessage("tutor", welcomeText, true);
             bubble?.classList?.add("uni-welcome");
             appendWelcomeActions(bubble);
-            if (options.prepend && messagesEl?.firstChild && bubble?.parentNode === messagesEl) {
-                messagesEl.insertBefore(bubble, messagesEl.firstChild);
-                conversation = [{ sender: "tutor", text: welcomeText }, ...conversation.filter((m) => m?.text !== welcomeText)];
-            }
+            repositionWelcomeBubble(bubble, options);
+            repositionWelcomeConversation(welcomeText, options);
             markFirstClassroomWelcomeSeen();
             await fireClassroomWelcomeShown("local");
             return true;
@@ -6020,7 +6052,7 @@ Ready to begin?`,
                             setTimeout(nextPrompt, 400);
                         }
                     } else if (!hasUserMessages()) {
-                        await renderFirstTimeWelcome({ prepend: true });
+                        await renderFirstTimeWelcome({ prepend: true, beforeQuestion: true });
                     }
 
                     // 🧩 Persist initial tutor bubbles once session_id exists
