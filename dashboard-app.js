@@ -324,6 +324,9 @@ html.${MODAL_OPEN_CLASS} #${MODAL_ID}{opacity:1;pointer-events:auto;}
   background:#0f1222;
   color:#fff;
 }
+#${MODAL_ID} .um-kebab-btn-primary:not([disabled]){
+  background:#d64545;
+}
 #${MODAL_ID} .um-kebab-btn-primary[disabled]{
   opacity:.45;
   cursor:not-allowed;
@@ -405,9 +408,25 @@ function ensureKebab(card){
   button.addEventListener('click', (event)=>{
     event.preventDefault();
     event.stopPropagation();
+    const link = card.querySelector('a[href]');
+    const href = link?.getAttribute('href') || '';
+    const url = href ? new URL(href, window.location.origin) : null;
+    const courseId = url?.searchParams?.get('graph') || null;
+    const email = getUserEmail();
+    console.log('[dashboard] kebab remove target', {
+      url: url?.toString() || href || null,
+      email,
+      course_id: courseId
+    });
     openModal();
   });
   card.appendChild(button);
+}
+
+function getUserEmail(){
+  const u = window.logged_in_user || window.Softr?.currentUser || window.__U?.profile || window.user || window.__USER || {};
+  const email = u.email || u.softr_user_email || u.primary_email || window.__U?.current_email || null;
+  return typeof email === 'string' ? email.trim().toLowerCase() : null;
 }
 
 function decorate(){
