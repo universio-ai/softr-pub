@@ -1475,6 +1475,354 @@ function watchAndInject(){
 ;
 </script>
 
+<script>
+(function () {
+  if (window.__umEnrollPopupInjected) return;
+  window.__umEnrollPopupInjected = true;
+
+  const CERT_HINT = "Certificate";
+  const SHOWN_KEY_PREFIX = "universio:enrollPopupShown:";
+  const PENDING_KEY = "universio:enrollPopupPendingCert";
+  const CERT_NAME_MAP = {
+    "ai for k-12 educators": "CR3-001",
+  };
+  const MODAL_ID = "um-enroll-modal";
+  const BACKDROP_ID = "um-enroll-backdrop";
+  let lastFocused = null;
+  let lastAnchor = null;
+  let lastCertKey = null;
+
+  function normalize(text) {
+    return (text || "").toLowerCase();
+  }
+
+  function elementMatchesCertificate(el) {
+    if (!el) return false;
+    const text = normalize(el.innerText || el.textContent || "");
+    return text.includes(normalize(CERT_HINT));
+  }
+
+  function findCertificateCardFromAnchor(anchorEl) {
+    let node = anchorEl;
+    while (node && node !== document.body) {
+      if (elementMatchesCertificate(node)) return node;
+      node = node.parentElement;
+    }
+    return null;
+  }
+
+  function findCertificateCardAnywhere() {
+    const nodes = Array.from(document.querySelectorAll("section, article, div"));
+    return nodes.find(elementMatchesCertificate) || null;
+  }
+
+  function slugify(text) {
+    return normalize(text)
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)+/g, "");
+  }
+
+  function resolveCertKeyFromCard(card) {
+    if (!card) return "CERT:UNKNOWN";
+    const text = normalize(card.innerText || card.textContent || "");
+    const idMatch = text.match(/cr\d-\d{3}/i);
+    if (idMatch) return idMatch[0].toUpperCase();
+    for (const [needle, certId] of Object.entries(CERT_NAME_MAP)) {
+      if (text.includes(needle)) return certId;
+    }
+    const heading =
+      card.querySelector("h1, h2, h3, h4, h5, [data-title], [data-name]")?.innerText ||
+      "";
+    const fallback = heading || text.slice(0, 80);
+    return fallback ? `CERT:${slugify(fallback)}` : "CERT:UNKNOWN";
+  }
+
+  function shownKeyFor(certKey) {
+    return `${SHOWN_KEY_PREFIX}${certKey}`;
+  }
+
+  function hasShown(certKey) {
+    return sessionStorage.getItem(shownKeyFor(certKey)) === "1";
+  }
+
+  function scrollAndHighlightCertificateCard() {
+    const directCard = lastAnchor ? findCertificateCardFromAnchor(lastAnchor) : null;
+    const target = directCard || findCertificateCardAnywhere();
+    if (!target) return;
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+    target.classList.add("um-cert-highlight");
+    window.setTimeout(() => {
+      target.classList.remove("um-cert-highlight");
+    }, 1500);
+  }
+
+  function injectModalOnce() {
+    if (document.getElementById(MODAL_ID)) return;
+
+    const style = document.createElement("style");
+    style.id = "um-enroll-modal-styles";
+    style.textContent = `
+      body.um-modal-open { overflow: hidden; }
+      .um-enroll-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.45);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        pointer-events: none;
+        z-index: 99999;
+        transition: opacity 160ms ease;
+      }
+      .um-enroll-backdrop.is-visible {
+        opacity: 1;
+        pointer-events: auto;
+      }
+      .um-enroll-modal {
+        background: #ffffff;
+        color: #111111;
+        width: min(420px, 92vw);
+        border-radius: 18px;
+        padding: 18px 20px;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+        font-family: system-ui, -apple-system, Segoe UI, Inter, Roboto, Arial, sans-serif;
+      }
+      .um-enroll-modal__title {
+        font-size: 16px;
+        font-weight: 700;
+        margin: 0 0 8px;
+      }
+      .um-enroll-modal__body {
+        font-size: 13.5px;
+        line-height: 1.45;
+        margin: 0 0 16px;
+      }
+      .um-enroll-modal__actions {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .um-enroll-btn {
+        border: 1px solid #111111;
+        border-radius: 999px;
+        padding: 9px 14px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        text-align: center;
+        background: #ffffff;
+        color: #111111;
+        text-decoration: none;
+      }
+      .um-enroll-btn--primary {
+        background: #111111;
+        color: #ffffff;
+      }
+      .um-enroll-btn--link {
+        border: none;
+        padding: 0;
+        background: transparent;
+        text-decoration: underline;
+        font-weight: 500;
+      }
+      .um-enroll-modal__close {
+        position: absolute;
+        top: 10px;
+        right: 12px;
+        border: none;
+        background: transparent;
+        font-size: 18px;
+        line-height: 1;
+        cursor: pointer;
+      }
+      .um-enroll-modal__container {
+        position: relative;
+      }
+      .um-cert-highlight {
+        box-shadow: 0 0 0 3px #000000, 0 0 18px rgba(0, 0, 0, 0.35);
+        transition: box-shadow 200ms ease;
+      }
+    `;
+    document.head.appendChild(style);
+
+    const backdrop = document.createElement("div");
+    backdrop.id = BACKDROP_ID;
+    backdrop.className = "um-enroll-backdrop";
+    backdrop.innerHTML = `
+      <div class="um-enroll-modal um-enroll-modal__container" id="${MODAL_ID}" role="dialog" aria-modal="true" aria-labelledby="um-enroll-title" tabindex="-1">
+        <button class="um-enroll-modal__close" aria-label="Close" data-um-close>×</button>
+        <h2 class="um-enroll-modal__title" id="um-enroll-title">You’re enrolled.</h2>
+        <p class="um-enroll-modal__body">
+          Great that you’ve enrolled. To get started, click any microcourse listed in this certificate card.
+          You can also go back to the Dashboard and start from the certificate card there. Explore has more details on each microcourse.
+        </p>
+        <div class="um-enroll-modal__actions">
+          <button class="um-enroll-btn um-enroll-btn--primary" data-um-start>Start a microcourse</button>
+          <button class="um-enroll-btn" data-um-dashboard>Go to Dashboard</button>
+          <button class="um-enroll-btn um-enroll-btn--link" data-um-explore>Explore microcourses</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+
+    backdrop.addEventListener("click", (event) => {
+      if (event.target === backdrop) {
+        closeEnrollModal();
+      }
+    });
+
+    const closeButton = backdrop.querySelector("[data-um-close]");
+    const startButton = backdrop.querySelector("[data-um-start]");
+    const dashboardButton = backdrop.querySelector("[data-um-dashboard]");
+    const exploreButton = backdrop.querySelector("[data-um-explore]");
+
+    closeButton?.addEventListener("click", closeEnrollModal);
+    startButton?.addEventListener("click", () => {
+      closeEnrollModal();
+      scrollAndHighlightCertificateCard();
+    });
+    dashboardButton?.addEventListener("click", () => {
+      window.location.href = "/dashboard";
+    });
+    exploreButton?.addEventListener("click", () => {
+      window.location.href = "/explore";
+    });
+  }
+
+  function getFocusableElements(container) {
+    if (!container) return [];
+    return Array.from(
+      container.querySelectorAll(
+        'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])'
+      )
+    );
+  }
+
+  function trapFocus(event) {
+    if (event.key !== "Tab") return;
+    const modal = document.getElementById(MODAL_ID);
+    if (!modal) return;
+    const focusable = getFocusableElements(modal);
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
+  function handleKeydown(event) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeEnrollModal();
+      return;
+    }
+    trapFocus(event);
+  }
+
+  function openEnrollModal({ anchorEl, certKey } = {}) {
+    injectModalOnce();
+    const backdrop = document.getElementById(BACKDROP_ID);
+    if (!backdrop) return;
+    lastAnchor = anchorEl || lastAnchor;
+    lastCertKey = certKey || lastCertKey;
+    lastFocused = document.activeElement;
+    backdrop.classList.add("is-visible");
+    document.body.classList.add("um-modal-open");
+    const modal = document.getElementById(MODAL_ID);
+    const focusTarget = modal?.querySelector("[data-um-close]") || modal;
+    window.setTimeout(() => {
+      focusTarget?.focus();
+    }, 0);
+    document.addEventListener("keydown", handleKeydown);
+    window.gtag?.("event", "cert_enroll_popup_shown", {
+      cert_id: lastCertKey || "unknown",
+    });
+  }
+
+  function closeEnrollModal() {
+    const backdrop = document.getElementById(BACKDROP_ID);
+    if (!backdrop) return;
+    backdrop.classList.remove("is-visible");
+    document.body.classList.remove("um-modal-open");
+    document.removeEventListener("keydown", handleKeydown);
+    if (lastFocused && typeof lastFocused.focus === "function") {
+      lastFocused.focus();
+    }
+  }
+
+  function matchesEnrollText(el) {
+    const text = normalize(el?.innerText || el?.textContent || "");
+    return text === "enroll";
+  }
+
+  function isTargetEnrollClick(target) {
+    const button = target?.closest?.("a, button");
+    if (!button || !matchesEnrollText(button)) return null;
+    if (button.dataset.umEnrollBound !== "1") {
+      button.dataset.umEnrollBound = "1";
+    }
+    const card = findCertificateCardFromAnchor(button);
+    if (!card) return null;
+    if (!elementMatchesCertificate(card)) return null;
+    const certKey = resolveCertKeyFromCard(card);
+    return { button, card, certKey };
+  }
+
+  function handleEnrollClick(event) {
+    const match = isTargetEnrollClick(event.target);
+    if (!match) return;
+    if (hasShown(match.certKey)) return;
+    sessionStorage.setItem(
+      PENDING_KEY,
+      JSON.stringify({ certKey: match.certKey, ts: Date.now() })
+    );
+    openEnrollModal({ anchorEl: match.button, certKey: match.certKey });
+    sessionStorage.setItem(shownKeyFor(match.certKey), "1");
+    sessionStorage.removeItem(PENDING_KEY);
+  }
+
+  function checkPendingPopup() {
+    const rawPending = sessionStorage.getItem(PENDING_KEY);
+    if (!rawPending) return;
+    let pending = null;
+    try {
+      pending = JSON.parse(rawPending);
+    } catch (e) {
+      pending = null;
+    }
+    const certKey = pending?.certKey;
+    if (!certKey || hasShown(certKey)) {
+      sessionStorage.removeItem(PENDING_KEY);
+      return;
+    }
+    openEnrollModal({ certKey });
+    sessionStorage.setItem(shownKeyFor(certKey), "1");
+    sessionStorage.removeItem(PENDING_KEY);
+  }
+
+  function wireEnrollButtons() {
+    const candidates = Array.from(document.querySelectorAll("a, button"));
+    candidates.forEach((el) => {
+      if (!matchesEnrollText(el)) return;
+      if (!el.dataset.umEnrollBound) {
+        el.dataset.umEnrollBound = "1";
+      }
+    });
+    checkPendingPopup();
+  }
+
+  document.addEventListener("click", handleEnrollClick, true);
+  window.addEventListener("@softr/page-content-loaded", wireEnrollButtons, { passive: true });
+  wireEnrollButtons();
+})();
+</script>
+
 <style>
 /* remove the red Softr placeholder background */
 #um-course-cta-host:empty,
