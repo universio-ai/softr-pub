@@ -420,13 +420,12 @@ function ensureModal(){
     });
     primary.addEventListener('click', async ()=>{
       showRemoveLoader();
+      closeModal();
       const ids = buildRemovalIds(activeTarget);
       if (ids) {
         console.log('[dashboard] kebab removal ids', ids);
         await callRemoveMicrocourse(ids);
       }
-      closeModal();
-      hideRemoveLoader();
     });
   }
   document.body.appendChild(modal);
