@@ -223,7 +223,6 @@ html[${HIDE_ATTR}="1"] .${KEBAB_CLASS}{opacity:0;pointer-events:none;transform:t
   justify-content:center;
   gap:3px;
   background:rgba(255,255,255,.75);
-  border:1px solid rgba(0,0,0,.06);
   border-radius:999px;
   box-shadow:0 4px 10px rgba(15,18,34,.08);
   opacity:0;
