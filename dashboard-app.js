@@ -204,6 +204,7 @@ const KEBAB_CLASS = 'um-grid2-kebab';
 const STYLE_ID = 'um-grid2-kebab-style';
 const MODAL_ID = 'um-grid2-kebab-modal';
 const MODAL_OPEN_CLASS = 'um-grid2-kebab-open';
+const REMOVE_LOADER_ID = 'um-remove-loader';
 let scrollTimer = null;
 let debounceTimer = null;
 let activeTarget = null;
@@ -333,6 +334,45 @@ html.${MODAL_OPEN_CLASS} #${MODAL_ID}{opacity:1;pointer-events:auto;}
   opacity:.45;
   cursor:not-allowed;
 }
+#${REMOVE_LOADER_ID}{
+  position:fixed;
+  inset:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:rgba(255,255,255,.88);
+  backdrop-filter:blur(3px);
+  z-index:9998;
+  opacity:0;
+  pointer-events:none;
+  transition:opacity .2s ease;
+}
+#${REMOVE_LOADER_ID}[data-visible="1"]{
+  opacity:1;
+  pointer-events:auto;
+}
+#${REMOVE_LOADER_ID} .um-remove-loader{
+  display:inline-flex;
+  gap:8px;
+  align-items:center;
+  justify-content:center;
+}
+#${REMOVE_LOADER_ID} .um-remove-loader span{
+  width:12px;
+  height:12px;
+  border-radius:999px;
+  background:#a855f7;
+  opacity:.28;
+  animation: umRemoveDot 1s ease-in-out infinite;
+  box-shadow:0 2px 6px rgba(123,97,255,.3);
+}
+#${REMOVE_LOADER_ID} .um-remove-loader span:nth-child(1){animation-delay:-.20s;}
+#${REMOVE_LOADER_ID} .um-remove-loader span:nth-child(2){animation-delay:-.10s;}
+#${REMOVE_LOADER_ID} .um-remove-loader span:nth-child(3){animation-delay:0s;}
+@keyframes umRemoveDot{
+  0%, 80%, 100% { transform: scale(.6); opacity: .25; filter: brightness(0.85); }
+  40% { transform: scale(1); opacity: 1; filter: brightness(1.18) saturate(1.25); }
+}
 @media (max-width: 540px){
   #${MODAL_ID}{padding:16px;}
   #${MODAL_ID} .um-kebab-modal-card{border-radius:16px;padding:18px 16px 16px;}
@@ -379,12 +419,14 @@ function ensureModal(){
       primary.disabled = !checkbox.checked;
     });
     primary.addEventListener('click', async ()=>{
+      showRemoveLoader();
       const ids = buildRemovalIds(activeTarget);
       if (ids) {
         console.log('[dashboard] kebab removal ids', ids);
         await callRemoveMicrocourse(ids);
       }
       closeModal();
+      hideRemoveLoader();
     });
   }
   document.body.appendChild(modal);
@@ -481,6 +523,7 @@ async function callRemoveMicrocourse(ids){
   const token = window.__U?.cwt;
   if (!token) {
     console.warn('[dashboard] remove-microcourse missing Authorization token');
+    hideRemoveLoader();
     return;
   }
   const payload = {
@@ -499,9 +542,31 @@ async function callRemoveMicrocourse(ids){
     const json = await res.json().catch(()=>null);
     console.log('[dashboard] remove-microcourse response', json);
     scheduleGrid2Fallback();
+    hideRemoveLoader();
   }catch(err){
     console.warn('[dashboard] remove-microcourse failed', err);
+    hideRemoveLoader();
   }
+}
+
+function ensureRemoveLoader(){
+  if (document.getElementById(REMOVE_LOADER_ID)) return;
+  const loader = document.createElement('div');
+  loader.id = REMOVE_LOADER_ID;
+  loader.innerHTML = '<div class="um-remove-loader" aria-label="Removing course"><span></span><span></span><span></span></div>';
+  document.body.appendChild(loader);
+}
+
+function showRemoveLoader(){
+  injectStyles();
+  ensureRemoveLoader();
+  const loader = document.getElementById(REMOVE_LOADER_ID);
+  if (loader) loader.setAttribute('data-visible', '1');
+}
+
+function hideRemoveLoader(){
+  const loader = document.getElementById(REMOVE_LOADER_ID);
+  if (loader) loader.setAttribute('data-visible', '0');
 }
 
 function applyGrid2Fallback(){
@@ -573,6 +638,7 @@ function handleScroll(){
 function boot(){
   injectStyles();
   ensureModal();
+  ensureRemoveLoader();
   decorate();
   handleScroll();
   watchGrid2Empty();
