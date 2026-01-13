@@ -4372,7 +4372,16 @@ injectStyles(`
             if (hasSeenFirstClassroomWelcome()) return false;
             const welcomeText =
                 "Hello, there! 👋 Excited that you’re trying this out! If this course isn’t for you, you can go back to the Dashboard and hit Explore to find a more relevant course.";
-            if (conversation.some((msg) => msg?.text === welcomeText)) return false;
+            const welcomeSnippet = "go back to the Dashboard and hit Explore";
+            if (
+                conversation.some(
+                    (msg) =>
+                        msg?.sender === "tutor" &&
+                        typeof msg?.text === "string" &&
+                        (msg.text === welcomeText || msg.text.includes(welcomeSnippet))
+                )
+            )
+                return false;
             const bubble = addMessage("tutor", welcomeText, true);
             bubble?.classList?.add("uni-welcome");
             appendWelcomeActions(bubble);
