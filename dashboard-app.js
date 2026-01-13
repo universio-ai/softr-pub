@@ -497,7 +497,7 @@ async function callRemoveMicrocourse(ids){
     });
     const json = await res.json().catch(()=>null);
     console.log('[dashboard] remove-microcourse response', json);
-    setTimeout(()=>applyGrid2Fallback(), 600);
+    scheduleGrid2Fallback();
   }catch(err){
     console.warn('[dashboard] remove-microcourse failed', err);
   }
@@ -520,6 +520,20 @@ function applyGrid2Fallback(){
   try{
     sessionStorage.removeItem('um.dashboard.gridStates');
   }catch{}
+}
+
+function scheduleGrid2Fallback(){
+  let tries = 0;
+  const check = ()=>{
+    applyGrid2Fallback();
+    const grid2 = document.getElementById(GRID2_ID);
+    const hasCards = grid2?.querySelectorAll(CARD_SELECTOR)?.length;
+    if (hasCards) return;
+    if (tries >= 8) return;
+    tries += 1;
+    setTimeout(check, 400);
+  };
+  check();
 }
 
 function decorate(){
@@ -547,6 +561,8 @@ function boot(){
   ensureModal();
   decorate();
   handleScroll();
+  window.addEventListener('um:dashboard-commit', scheduleGrid2Fallback);
+  window.addEventListener('@softr/page-content-loaded', scheduleGrid2Fallback);
   window.addEventListener('scroll', handleScroll, { passive: true });
   window.addEventListener('@softr/page-content-loaded', decorate);
   new MutationObserver(()=>{
