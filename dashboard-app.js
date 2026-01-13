@@ -206,6 +206,7 @@ const MODAL_ID = 'um-grid2-kebab-modal';
 const MODAL_OPEN_CLASS = 'um-grid2-kebab-open';
 let scrollTimer = null;
 let debounceTimer = null;
+let activeTarget = null;
 
 function injectStyles(){
   if (document.getElementById(STYLE_ID)) return;
@@ -376,7 +377,13 @@ function ensureModal(){
     checkbox.addEventListener('change', ()=>{
       primary.disabled = !checkbox.checked;
     });
-    primary.addEventListener('click', closeModal);
+    primary.addEventListener('click', ()=>{
+      const ids = buildRemovalIds(activeTarget);
+      if (ids) {
+        console.log('[dashboard] kebab removal ids', ids);
+      }
+      closeModal();
+    });
   }
   document.body.appendChild(modal);
 }
@@ -413,6 +420,8 @@ function ensureKebab(card){
     const url = href ? new URL(href, window.location.origin) : null;
     const courseId = url?.searchParams?.get('graph') || null;
     const email = getUserEmail();
+    const node = url?.searchParams?.get('node') || null;
+    activeTarget = { url: url?.toString() || href || null, email, courseId, node };
     console.log('[dashboard] kebab remove target', {
       url: url?.toString() || href || null,
       email,
@@ -427,6 +436,43 @@ function getUserEmail(){
   const u = window.logged_in_user || window.Softr?.currentUser || window.__U?.profile || window.user || window.__USER || {};
   const email = u.email || u.softr_user_email || u.primary_email || window.__U?.current_email || null;
   return typeof email === 'string' ? email.trim().toLowerCase() : null;
+}
+
+function normalizeEmailKey(email){
+  if (typeof email !== 'string' || !email) return null;
+  return email.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+}
+
+function buildRemovalIds(target){
+  if (!target?.email || !target?.courseId || !target?.node) return null;
+  const emailKey = normalizeEmailKey(target.email);
+  if (!emailKey) return null;
+  const courseId = String(target.courseId).trim();
+  const node = String(target.node).trim();
+  if (!courseId || !node) return null;
+  const nodeMatch = node.match(/^([a-z]+)(\d+)$/i);
+  let nodes = [];
+  if (/^cap/i.test(node)) {
+    nodes = [node.toUpperCase()];
+  } else if (nodeMatch) {
+    const prefix = nodeMatch[1].toUpperCase();
+    const max = Number(nodeMatch[2]);
+    for (let i = 1; i <= max; i += 1) {
+      nodes.push(`${prefix}${i}`);
+    }
+  } else {
+    nodes = [node.toUpperCase()];
+  }
+  const conversation_logs = nodes.map((n)=>`${emailKey}_${courseId.toUpperCase()}_${n}`);
+  const mastery = nodes.map((n)=>`${emailKey}_${courseId.toLowerCase()}_${n.toLowerCase()}`);
+  return {
+    url: target.url || null,
+    email: target.email,
+    course_id: courseId,
+    node,
+    conversation_logs,
+    mastery
+  };
 }
 
 function decorate(){
