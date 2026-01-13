@@ -569,7 +569,7 @@ function hideRemoveLoader(){
 }
 
 function hideRemoveLoaderDelayed(){
-  setTimeout(()=>hideRemoveLoader(), 1500);
+  setTimeout(()=>hideRemoveLoader(), 2500);
 }
 
 function applyGrid2Fallback(){
