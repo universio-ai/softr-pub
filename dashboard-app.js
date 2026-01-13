@@ -377,10 +377,11 @@ function ensureModal(){
     checkbox.addEventListener('change', ()=>{
       primary.disabled = !checkbox.checked;
     });
-    primary.addEventListener('click', ()=>{
+    primary.addEventListener('click', async ()=>{
       const ids = buildRemovalIds(activeTarget);
       if (ids) {
         console.log('[dashboard] kebab removal ids', ids);
+        await callRemoveMicrocourse(ids);
       }
       closeModal();
     });
@@ -473,6 +474,32 @@ function buildRemovalIds(target){
     conversation_logs,
     mastery
   };
+}
+
+async function callRemoveMicrocourse(ids){
+  const token = window.__U?.cwt;
+  if (!token) {
+    console.warn('[dashboard] remove-microcourse missing Authorization token');
+    return;
+  }
+  const payload = {
+    session_ids: ids.conversation_logs || [],
+    mastery_ids: ids.mastery || []
+  };
+  try{
+    const res = await fetch("https://oomcxsfikujptkfsqgzi.supabase.co/functions/v1/remove-microcourse", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      body: JSON.stringify(payload)
+    });
+    const json = await res.json().catch(()=>null);
+    console.log('[dashboard] remove-microcourse response', json);
+  }catch(err){
+    console.warn('[dashboard] remove-microcourse failed', err);
+  }
 }
 
 function decorate(){
