@@ -497,9 +497,29 @@ async function callRemoveMicrocourse(ids){
     });
     const json = await res.json().catch(()=>null);
     console.log('[dashboard] remove-microcourse response', json);
+    setTimeout(()=>applyGrid2Fallback(), 600);
   }catch(err){
     console.warn('[dashboard] remove-microcourse failed', err);
   }
+}
+
+function applyGrid2Fallback(){
+  const grid2 = document.getElementById(GRID2_ID);
+  if (!grid2) return;
+  const cards = grid2.querySelectorAll(CARD_SELECTOR);
+  if (cards.length > 0) return;
+  const grid1 = document.getElementById('grid1');
+  grid2.style.setProperty('display', 'none', 'important');
+  grid2.style.setProperty('visibility', 'hidden', 'important');
+  grid2.style.setProperty('opacity', '0', 'important');
+  if (grid1) {
+    grid1.style.setProperty('display', 'block', 'important');
+    grid1.style.removeProperty('visibility');
+    grid1.style.removeProperty('opacity');
+  }
+  try{
+    sessionStorage.removeItem('um.dashboard.gridStates');
+  }catch{}
 }
 
 function decorate(){
