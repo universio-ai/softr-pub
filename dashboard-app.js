@@ -207,6 +207,7 @@ const MODAL_OPEN_CLASS = 'um-grid2-kebab-open';
 let scrollTimer = null;
 let debounceTimer = null;
 let activeTarget = null;
+let grid2Observer = null;
 
 function injectStyles(){
   if (document.getElementById(STYLE_ID)) return;
@@ -536,6 +537,19 @@ function scheduleGrid2Fallback(){
   check();
 }
 
+function watchGrid2Empty(){
+  if (grid2Observer) return;
+  const grid2 = document.getElementById(GRID2_ID);
+  if (!grid2) return;
+  const runCheck = ()=>{
+    requestAnimationFrame(()=>{
+      setTimeout(()=>applyGrid2Fallback(), 120);
+    });
+  };
+  grid2Observer = new MutationObserver(runCheck);
+  grid2Observer.observe(grid2, { childList: true, subtree: true });
+}
+
 function decorate(){
   const grid = document.getElementById(GRID2_ID);
   if (!grid) return;
@@ -561,6 +575,7 @@ function boot(){
   ensureModal();
   decorate();
   handleScroll();
+  watchGrid2Empty();
   window.addEventListener('um:dashboard-commit', scheduleGrid2Fallback);
   window.addEventListener('@softr/page-content-loaded', scheduleGrid2Fallback);
   window.addEventListener('scroll', handleScroll, { passive: true });
