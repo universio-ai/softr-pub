@@ -202,6 +202,8 @@ const HIDE_ATTR = 'data-um-scroll-hide-kebab';
 const READY_CLASS = 'um-grid2-kebab-ready';
 const KEBAB_CLASS = 'um-grid2-kebab';
 const STYLE_ID = 'um-grid2-kebab-style';
+const MODAL_ID = 'um-grid2-kebab-modal';
+const MODAL_OPEN_CLASS = 'um-grid2-kebab-open';
 let scrollTimer = null;
 let debounceTimer = null;
 
@@ -238,8 +240,158 @@ html[${HIDE_ATTR}="1"] .${KEBAB_CLASS}{opacity:0;pointer-events:none;transform:t
   background:#cbd0d6;
   display:block;
 }
+html.${MODAL_OPEN_CLASS}{overflow:hidden;}
+html.${MODAL_OPEN_CLASS} #${MODAL_ID}{opacity:1;pointer-events:auto;}
+#${MODAL_ID}{
+  position:fixed;
+  inset:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:24px;
+  background:rgba(15,18,34,.35);
+  backdrop-filter:blur(6px);
+  opacity:0;
+  pointer-events:none;
+  transition:opacity .2s ease;
+  z-index:9999;
+}
+#${MODAL_ID} .um-kebab-modal-card{
+  width:min(480px, 92vw);
+  background:#fff;
+  border-radius:20px;
+  box-shadow:0 18px 40px rgba(15,18,34,.18);
+  padding:20px 20px 18px;
+  display:flex;
+  flex-direction:column;
+  gap:14px;
+}
+#${MODAL_ID} .um-kebab-modal-header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+}
+#${MODAL_ID} .um-kebab-modal-title{
+  font-size:1.05rem;
+  font-weight:600;
+  color:#0f1222;
+  margin:0;
+}
+#${MODAL_ID} .um-kebab-modal-close{
+  border:none;
+  background:rgba(15,18,34,.06);
+  color:#0f1222;
+  width:32px;
+  height:32px;
+  border-radius:999px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+}
+#${MODAL_ID} .um-kebab-modal-body{
+  font-size:0.95rem;
+  color:#434e5f;
+  line-height:1.5;
+}
+#${MODAL_ID} .um-kebab-confirm{
+  display:flex;
+  align-items:flex-start;
+  gap:10px;
+  font-size:0.9rem;
+  color:#434e5f;
+}
+#${MODAL_ID} .um-kebab-confirm input{margin-top:4px;}
+#${MODAL_ID} .um-kebab-actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  justify-content:flex-end;
+}
+#${MODAL_ID} .um-kebab-btn{
+  border:none;
+  border-radius:999px;
+  padding:10px 16px;
+  font-size:0.92rem;
+  cursor:pointer;
+}
+#${MODAL_ID} .um-kebab-btn-secondary{
+  background:rgba(15,18,34,.08);
+  color:#0f1222;
+}
+#${MODAL_ID} .um-kebab-btn-primary{
+  background:#0f1222;
+  color:#fff;
+}
+#${MODAL_ID} .um-kebab-btn-primary[disabled]{
+  opacity:.45;
+  cursor:not-allowed;
+}
+@media (max-width: 540px){
+  #${MODAL_ID}{padding:16px;}
+  #${MODAL_ID} .um-kebab-modal-card{border-radius:16px;padding:18px 16px 16px;}
+  #${MODAL_ID} .um-kebab-actions{flex-direction:column;align-items:stretch;}
+}
 `;
   document.head.appendChild(style);
+}
+
+function ensureModal(){
+  if (document.getElementById(MODAL_ID)) return;
+  const modal = document.createElement('div');
+  modal.id = MODAL_ID;
+  modal.setAttribute('role', 'dialog');
+  modal.setAttribute('aria-modal', 'true');
+  modal.innerHTML = `
+    <div class="um-kebab-modal-card" role="document">
+      <div class="um-kebab-modal-header">
+        <h3 class="um-kebab-modal-title">Remove course?</h3>
+        <button type="button" class="um-kebab-modal-close" aria-label="Close">✕</button>
+      </div>
+      <div class="um-kebab-modal-body">
+        Do you wish to remove this course and all of its history?
+      </div>
+      <label class="um-kebab-confirm">
+        <input type="checkbox" />
+        <span>I understand this will remove the course and its history.</span>
+      </label>
+      <div class="um-kebab-actions">
+        <button type="button" class="um-kebab-btn um-kebab-btn-secondary">Cancel</button>
+        <button type="button" class="um-kebab-btn um-kebab-btn-primary" disabled>Yes, remove course</button>
+      </div>
+    </div>
+  `;
+  const closeButtons = modal.querySelectorAll('.um-kebab-modal-close, .um-kebab-btn-secondary');
+  closeButtons.forEach((btn)=>btn.addEventListener('click', closeModal));
+  modal.addEventListener('click', (event)=>{
+    if (event.target === modal) closeModal();
+  });
+  const checkbox = modal.querySelector('.um-kebab-confirm input');
+  const primary = modal.querySelector('.um-kebab-btn-primary');
+  if (checkbox && primary) {
+    checkbox.addEventListener('change', ()=>{
+      primary.disabled = !checkbox.checked;
+    });
+    primary.addEventListener('click', closeModal);
+  }
+  document.body.appendChild(modal);
+}
+
+function openModal(){
+  injectStyles();
+  ensureModal();
+  document.documentElement.classList.add(MODAL_OPEN_CLASS);
+}
+
+function closeModal(){
+  document.documentElement.classList.remove(MODAL_OPEN_CLASS);
+  const checkbox = document.querySelector(`#${MODAL_ID} .um-kebab-confirm input`);
+  const primary = document.querySelector(`#${MODAL_ID} .um-kebab-btn-primary`);
+  if (checkbox && primary) {
+    checkbox.checked = false;
+    primary.disabled = true;
+  }
 }
 
 function ensureKebab(card){
@@ -253,6 +405,7 @@ function ensureKebab(card){
   button.addEventListener('click', (event)=>{
     event.preventDefault();
     event.stopPropagation();
+    openModal();
   });
   card.appendChild(button);
 }
@@ -278,6 +431,8 @@ function handleScroll(){
 }
 
 function boot(){
+  injectStyles();
+  ensureModal();
   decorate();
   handleScroll();
   window.addEventListener('scroll', handleScroll, { passive: true });
