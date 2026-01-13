@@ -1644,10 +1644,11 @@ function watchAndInject(){
     backdrop.innerHTML = `
       <div class="um-enroll-modal um-enroll-modal__container" id="${MODAL_ID}" role="dialog" aria-modal="true" aria-labelledby="um-enroll-title" tabindex="-1">
         <button class="um-enroll-modal__close" aria-label="Close" data-um-close>×</button>
-        <h2 class="um-enroll-modal__title" id="um-enroll-title">You’re enrolled.</h2>
+        <h2 class="um-enroll-modal__title" id="um-enroll-title">You’re enrolled!</h2>
         <p class="um-enroll-modal__body">
-          Great that you’ve enrolled. To get started, click any microcourse listed in this certificate card.
-          You can also go back to the Dashboard and start from the certificate card there. Explore has more details on each microcourse.
+          You’re all set. To get started, select any microcourse included in this certificate.
+          You can also return to your Dashboard at any time to continue from the certificate card.
+          Explore each microcourse to see details before starting.
         </p>
         <div class="um-enroll-modal__actions">
           <button class="um-enroll-btn um-enroll-btn--primary" data-um-start>Start a microcourse</button>
@@ -1678,7 +1679,7 @@ function watchAndInject(){
       window.location.href = "/dashboard";
     });
     exploreButton?.addEventListener("click", () => {
-      window.location.href = "/explore";
+      window.location.href = "https://www.universio.ai/microcourses";
     });
   }
 
