@@ -1481,7 +1481,6 @@ function watchAndInject(){
   window.__umEnrollPopupInjected = true;
 
   const CERT_HINT = "Certificate";
-  const SHOWN_KEY_PREFIX = "universio:enrollPopupShown:";
   const PENDING_KEY = "universio:enrollPopupPendingCert";
   const CERT_NAME_MAP = {
     "ai for k-12 educators": "CR3-001",
@@ -1491,6 +1490,7 @@ function watchAndInject(){
   let lastFocused = null;
   let lastAnchor = null;
   let lastCertKey = null;
+  let isModalOpen = false;
 
   function normalize(text) {
     return (text || "").toLowerCase();
@@ -1535,14 +1535,6 @@ function watchAndInject(){
       "";
     const fallback = heading || text.slice(0, 80);
     return fallback ? `CERT:${slugify(fallback)}` : "CERT:UNKNOWN";
-  }
-
-  function shownKeyFor(certKey) {
-    return `${SHOWN_KEY_PREFIX}${certKey}`;
-  }
-
-  function hasShown(certKey) {
-    return sessionStorage.getItem(shownKeyFor(certKey)) === "1";
   }
 
   function scrollAndHighlightCertificateCard() {
@@ -1726,6 +1718,7 @@ function watchAndInject(){
   }
 
   function openEnrollModal({ anchorEl, certKey } = {}) {
+    if (isModalOpen) return;
     injectModalOnce();
     const backdrop = document.getElementById(BACKDROP_ID);
     if (!backdrop) return;
@@ -1734,6 +1727,7 @@ function watchAndInject(){
     lastFocused = document.activeElement;
     backdrop.classList.add("is-visible");
     document.body.classList.add("um-modal-open");
+    isModalOpen = true;
     const modal = document.getElementById(MODAL_ID);
     const focusTarget = modal?.querySelector("[data-um-close]") || modal;
     window.setTimeout(() => {
@@ -1750,6 +1744,7 @@ function watchAndInject(){
     if (!backdrop) return;
     backdrop.classList.remove("is-visible");
     document.body.classList.remove("um-modal-open");
+    isModalOpen = false;
     document.removeEventListener("keydown", handleKeydown);
     if (lastFocused && typeof lastFocused.focus === "function") {
       lastFocused.focus();
@@ -1777,13 +1772,11 @@ function watchAndInject(){
   function handleEnrollClick(event) {
     const match = isTargetEnrollClick(event.target);
     if (!match) return;
-    if (hasShown(match.certKey)) return;
     sessionStorage.setItem(
       PENDING_KEY,
       JSON.stringify({ certKey: match.certKey, ts: Date.now() })
     );
     openEnrollModal({ anchorEl: match.button, certKey: match.certKey });
-    sessionStorage.setItem(shownKeyFor(match.certKey), "1");
     sessionStorage.removeItem(PENDING_KEY);
   }
 
@@ -1797,12 +1790,11 @@ function watchAndInject(){
       pending = null;
     }
     const certKey = pending?.certKey;
-    if (!certKey || hasShown(certKey)) {
+    if (!certKey) {
       sessionStorage.removeItem(PENDING_KEY);
       return;
     }
     openEnrollModal({ certKey });
-    sessionStorage.setItem(shownKeyFor(certKey), "1");
     sessionStorage.removeItem(PENDING_KEY);
   }
 
