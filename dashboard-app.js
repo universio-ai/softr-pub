@@ -522,7 +522,7 @@ async function callRemoveMicrocourse(ids){
   const token = window.__U?.cwt;
   if (!token) {
     console.warn('[dashboard] remove-microcourse missing Authorization token');
-    hideRemoveLoader();
+    hideRemoveLoaderDelayed();
     return;
   }
   const payload = {
@@ -541,10 +541,10 @@ async function callRemoveMicrocourse(ids){
     const json = await res.json().catch(()=>null);
     console.log('[dashboard] remove-microcourse response', json);
     scheduleGrid2Fallback();
-    hideRemoveLoader();
+    hideRemoveLoaderDelayed();
   }catch(err){
     console.warn('[dashboard] remove-microcourse failed', err);
-    hideRemoveLoader();
+    hideRemoveLoaderDelayed();
   }
 }
 
@@ -566,6 +566,10 @@ function showRemoveLoader(){
 function hideRemoveLoader(){
   const loader = document.getElementById(REMOVE_LOADER_ID);
   if (loader) loader.setAttribute('data-visible', '0');
+}
+
+function hideRemoveLoaderDelayed(){
+  setTimeout(()=>hideRemoveLoader(), 1500);
 }
 
 function applyGrid2Fallback(){
