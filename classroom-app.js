@@ -443,14 +443,16 @@
             }
         }
 
+        const storedCourse = extractCourseCode(storedCtx?.graphId || storedCtx?.course_id || "");
+        const allowStoredNode = storedCourse && graphId && storedCourse === graphId;
         const nodeCandidates = [
             rawNodeAttr,
             qs.get("node"),
             qs.get("node_id"),
             bootstrapCtx?.nodeId,
             bootstrapCtx?.node_id,
-            storedCtx?.nodeId,
-            storedCtx?.node_id,
+            allowStoredNode ? storedCtx?.nodeId : null,
+            allowStoredNode ? storedCtx?.node_id : null,
         ];
         let nodeId = "";
         for (const candidate of nodeCandidates) {
