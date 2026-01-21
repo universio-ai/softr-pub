@@ -1235,18 +1235,20 @@ window.addEventListener("universio:bootstrapped", () => {
                 const mask = document.getElementById("uniNavMask");
                 if (pill && mask) {
                   const rect = pill.getBoundingClientRect();
-                
+
                   mask.style.display = "block";
-                
+
                   // Align vertically with pill
                   mask.style.top = rect.top + "px";
-                
-                  // Less to the left → use -40 instead of -140
-                  mask.style.left = (rect.left - 10) + "px";
-                
-                  // Extend more to the right → increase width
-                  mask.style.width = "380px";   // previously 260px
-                
+
+                  // Align the mask with the pill's left edge
+                  mask.style.left = rect.left + "px";
+
+                  // Cover from the pill through the timer with a small buffer
+                  const buffer = 8;
+                  const width = Math.max(0, Math.round(r.right - rect.left + buffer));
+                  mask.style.width = width + "px";
+
                   // Remove shadow
                   mask.style.boxShadow = "none";
                 }
