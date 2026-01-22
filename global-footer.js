@@ -919,7 +919,7 @@ function fetchCourseCertIds(cid) {
 
 async function resolveCourseCertificateUrl(cid) {
   const normCid = normalizeCourseId(cid);
-  if (!normCid) return "/certificate";
+  if (!normCid) return null;
   if (CERT_LINK_CACHE.has(normCid)) return CERT_LINK_CACHE.get(normCid);
 
   const promise = (async () => {
@@ -929,7 +929,7 @@ async function resolveCourseCertificateUrl(cid) {
     const enrolledUrl = pickEnrollmentCertUrl(normalizedIds.length ? normalizedIds : [normCid]);
     if (enrolledUrl) return enrolledUrl;
 
-    return "/certificate";
+    return null;
   })();
 
   CERT_LINK_CACHE.set(normCid, promise);
@@ -1182,11 +1182,16 @@ function handleCompletion(cid, resolvedUrl = null) {
   (resolvedUrl ? Promise.resolve(resolvedUrl) : resolveCourseCertificateUrl(cid))
     .catch((err) => {
       console.warn("[UM] unable to resolve course certificate", err);
-      return "/certificate";
+      return null;
     })
     .then((url) => {
-      const target = normalizeUrl(url || "/certificate");
-      setReadyState(btn, "Completed • View Certificate", target);
+      const normalizedUrl = normalizeUrl(url);
+      if (!normalizedUrl || normalizedUrl === "/certificate") {
+        setReadyState(btn, "Completed • See Dashboard for PDF", "/dashboard");
+        placeBtnWrapper();
+        return;
+      }
+      setReadyState(btn, "Completed • View Certificate", normalizedUrl);
       placeBtnWrapper();
     });
   placeBtnWrapper();
