@@ -535,6 +535,13 @@ function certEnrollmentForCourse(cid) {
   return enrollments.find((enr) => normalizeCourseId(enr?.cert_id || enr?.certId || enr?.course_id) === normCid) || null;
 }
 
+const CERT_URL_FIELD_ID = "SCmZJ";
+
+function readEnrollmentCertUrl(enrollment) {
+  if (!enrollment) return null;
+  return enrollment?.cert_url || enrollment?.certUrl || enrollment?.[CERT_URL_FIELD_ID] || null;
+}
+
 function entCourseStats(ent = {}) {
   const stats = [];
   const courses = ent.courses || {};
@@ -626,7 +633,8 @@ function isCourseCompleted(cid) {
   const certEnrollment = certEnrollmentForCourse(normCid);
   if (certEnrollment) {
     const status = String(certEnrollment.status || certEnrollment.state || "").toLowerCase();
-    const hasCertUrl = typeof certEnrollment.cert_url === "string" && certEnrollment.cert_url.trim();
+    const certUrl = readEnrollmentCertUrl(certEnrollment);
+    const hasCertUrl = typeof certUrl === "string" && certUrl.trim();
     if (status === "completed" || status === "complete" || hasCertUrl) {
       return true;
     }
@@ -784,7 +792,7 @@ function pickEnrollmentCertUrl(certIds = []) {
   for (const enr of enrollments) {
     const cid = normalizeCourseId(enr?.cert_id || enr?.certId || "");
     if (!cid || !targets.has(cid)) continue;
-    const url = enr?.cert_url || enr?.certUrl || null;
+    const url = readEnrollmentCertUrl(enr);
     if (typeof url === "string" && url.trim()) return url;
   }
 
@@ -806,7 +814,8 @@ function analyzeCertEnrollments(cid, certIds = []) {
     if (!eid || (!targets.has(eid) && !targets.has(normalizeCourseId(eid)))) continue;
 
     const status = String(enr?.status || enr?.state || "").toLowerCase();
-    const hasUrl = typeof enr?.cert_url === "string" && enr.cert_url.trim();
+    const certUrl = readEnrollmentCertUrl(enr);
+    const hasUrl = typeof certUrl === "string" && certUrl.trim();
     const completedFlag =
       status.includes("complete") ||
       status.includes("earned") ||
