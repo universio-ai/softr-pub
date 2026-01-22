@@ -515,9 +515,16 @@ const START_NODE = {
 };
 const startUrlFor = cid => `/classroom?graph=${cid}${START_NODE[cid] ? `&node=${START_NODE[cid]}` : ''}`;
 const normalizeUrl = u => {
-  const x = new URL(u, location.origin);
-  if (x.origin !== location.origin) return x.href;
-  return x.pathname + x.search + x.hash;
+  if (!u) return null;
+  const raw = String(u).trim();
+  if (!raw || raw === "null" || raw === "undefined") return null;
+  try {
+    const x = new URL(raw, location.origin);
+    if (x.origin !== location.origin) return x.href;
+    return x.pathname + x.search + x.hash;
+  } catch {
+    return null;
+  }
 };
 
 function normalizeCourseId(id = "") {
@@ -1187,7 +1194,7 @@ function handleCompletion(cid, resolvedUrl = null) {
     .then((url) => {
       const normalizedUrl = normalizeUrl(url);
       if (!normalizedUrl || normalizedUrl === "/certificate") {
-        setReadyState(btn, "Completed • See Dashboard for PDF", "/dashboard");
+        setBlockedState(btn, "Completed", null);
         placeBtnWrapper();
         return;
       }
