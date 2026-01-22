@@ -1185,7 +1185,7 @@ setLoadingState(ensureBtn());
 
 function handleCompletion(cid, resolvedUrl = null) {
   const btn = ensureBtn();
-  setLoadingState(btn, "Completed – loading certificate…");
+  setLoadingState(btn, "Loading…");
   (resolvedUrl ? Promise.resolve(resolvedUrl) : resolveCourseCertificateUrl(cid))
     .catch((err) => {
       console.warn("[UM] unable to resolve course certificate", err);
