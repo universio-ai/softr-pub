@@ -214,13 +214,16 @@ function getGrid2CardCount(grid2){
   return 0;
 }
 
-function hasStartedLessonFromProfile(){
+function hasStableActivityFromProfile(){
   const p = window.__U?.dashboard_profile || {};
+  // Only treat as stable activity if we have completion/certificate signals.
+  // `in_progress_count` alone can be noisy for brand-new users and should not block empty-grid fallback.
   return (
-    Number(p.in_progress_count || 0) > 0 ||
     Number(p.completed_count || 0) > 0 ||
     Number(p.completed_node_count || 0) > 0 ||
-    Boolean(p.has_completed_node)
+    Boolean(p.has_completed_node) ||
+    Number(p.completed_cert_count || 0) > 0 ||
+    Boolean(p.has_completed_cert)
   );
 }
 const HIDE_ATTR = 'data-um-scroll-hide-kebab';
@@ -602,7 +605,7 @@ function applyGrid2Fallback(){
   if (!grid2) return;
   const cardCount = getGrid2CardCount(grid2);
   if (cardCount > 0) return;
-  if (hasStartedLessonFromProfile()) return;
+  if (hasStableActivityFromProfile()) return;
   const grid1 = document.getElementById('grid1');
   grid2.style.setProperty('display', 'none', 'important');
   grid2.style.setProperty('visibility', 'hidden', 'important');
@@ -1519,6 +1522,12 @@ function toggleGridsUnified(){
     applyStates(states);
 
     if(cache) writeCache(states,resolvedEmail);
+
+    // Re-run Grid 2 empty-state fallback once after final state commit.
+    // This keeps behavior deterministic even if event-based fallback listeners miss the commit timing.
+    requestAnimationFrame(()=>{
+      setTimeout(()=>applyGrid2Fallback(), 120);
+    });
 
     // ATOMIC: build bubbles/icons/etc before revealing
     // Add a couple rAFs so display changes are measurable for placement
