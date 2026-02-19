@@ -198,6 +198,31 @@ new MutationObserver(run).observe(document.getElementById('page-content')||docum
 'use strict';
 const GRID2_ID = 'grid2';
 const CARD_SELECTOR = '[data-testid="grid-item"]';
+const GRID2_CARD_FALLBACK_SELECTORS = [
+  CARD_SELECTOR,
+  '[data-um-card]',
+  '.softr-card',
+  'a[href*="/classroom"]'
+];
+
+function getGrid2CardCount(grid2){
+  if (!grid2) return 0;
+  for (const selector of GRID2_CARD_FALLBACK_SELECTORS) {
+    const count = grid2.querySelectorAll(selector).length;
+    if (count > 0) return count;
+  }
+  return 0;
+}
+
+function hasStartedLessonFromProfile(){
+  const p = window.__U?.dashboard_profile || {};
+  return (
+    Number(p.in_progress_count || 0) > 0 ||
+    Number(p.completed_count || 0) > 0 ||
+    Number(p.completed_node_count || 0) > 0 ||
+    Boolean(p.has_completed_node)
+  );
+}
 const HIDE_ATTR = 'data-um-scroll-hide-kebab';
 const READY_CLASS = 'um-grid2-kebab-ready';
 const KEBAB_CLASS = 'um-grid2-kebab';
@@ -575,8 +600,9 @@ function hideRemoveLoaderDelayed(){
 function applyGrid2Fallback(){
   const grid2 = document.getElementById(GRID2_ID);
   if (!grid2) return;
-  const cards = grid2.querySelectorAll(CARD_SELECTOR);
-  if (cards.length > 0) return;
+  const cardCount = getGrid2CardCount(grid2);
+  if (cardCount > 0) return;
+  if (hasStartedLessonFromProfile()) return;
   const grid1 = document.getElementById('grid1');
   grid2.style.setProperty('display', 'none', 'important');
   grid2.style.setProperty('visibility', 'hidden', 'important');
@@ -596,7 +622,7 @@ function scheduleGrid2Fallback(){
   const check = ()=>{
     applyGrid2Fallback();
     const grid2 = document.getElementById(GRID2_ID);
-    const hasCards = grid2?.querySelectorAll(CARD_SELECTOR)?.length;
+    const hasCards = getGrid2CardCount(grid2);
     if (hasCards) return;
     if (tries >= 8) return;
     tries += 1;
@@ -1630,8 +1656,8 @@ function toggleGridsUnified(){
               completedNodes > 0;
 
             const states={
-              grid1: (inProgress === 0),
-              grid2: inProgress >= 1,
+              grid1: !startedLesson,
+              grid2: startedLesson,
               grid3: hasCompletedCert,
               grid4: certCount >= 1,
               grid5: hasCompletedNode || hasCompletedCert,
