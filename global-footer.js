@@ -1,5 +1,5 @@
 <script>
-// THIS MAKES THE AVATAR ICON BLACK
+// THIS MAKES THE PROFILE AVATAR ICON BLACK
 // Plans page CTA logic is handled in softr/plans-page.js to avoid duplicate wiring.
 (function () {
   const BRAND_BLACK = "#000000";
@@ -824,9 +824,9 @@ function analyzeCertEnrollments(cid, certIds = []) {
     const certUrl = readEnrollmentCertUrl(enr);
     const hasUrl = typeof certUrl === "string" && certUrl.trim();
     const completedFlag =
-      status.includes("complete") ||
-      status.includes("earned") ||
+      status.includes("redeemed") ||
       status.includes("issued") ||
+      status.includes("earned") ||
       Number(enr?.completed) === 1 ||
       !!hasUrl;
     const startedFlag =
