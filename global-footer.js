@@ -1185,22 +1185,7 @@ setLoadingState(ensureBtn());
 
 function handleCompletion(cid, resolvedUrl = null) {
   const btn = ensureBtn();
-  setLoadingState(btn, "Loading…");
-  (resolvedUrl ? Promise.resolve(resolvedUrl) : resolveCourseCertificateUrl(cid))
-    .catch((err) => {
-      console.warn("[UM] unable to resolve course certificate", err);
-      return null;
-    })
-    .then((url) => {
-      const normalizedUrl = normalizeUrl(url);
-      if (!normalizedUrl || normalizedUrl === "/certificate") {
-        setBlockedState(btn, "Completed", null);
-        placeBtnWrapper();
-        return;
-      }
-      setReadyState(btn, "Completed • View Certificate", normalizedUrl);
-      placeBtnWrapper();
-    });
+  setBlockedState(btn, "Completed", null);
   placeBtnWrapper();
 }
 
