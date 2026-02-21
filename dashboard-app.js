@@ -620,6 +620,8 @@ function applyGrid2Fallback(){
   }catch{}
 }
 
+window.__umGrid2Fallback = window.__umGrid2Fallback || { run: applyGrid2Fallback };
+
 function scheduleGrid2Fallback(){
   let tries = 0;
   const check = ()=>{
@@ -640,7 +642,7 @@ function watchGrid2Empty(){
   if (!grid2) return;
   const runCheck = ()=>{
     requestAnimationFrame(()=>{
-      setTimeout(()=>applyGrid2Fallback(), 120);
+      setTimeout(()=>window.__umGrid2Fallback?.run?.(), 120);
     });
   };
   grid2Observer = new MutationObserver(runCheck);
@@ -1526,7 +1528,7 @@ function toggleGridsUnified(){
     // Re-run Grid 2 empty-state fallback once after final state commit.
     // This keeps behavior deterministic even if event-based fallback listeners miss the commit timing.
     requestAnimationFrame(()=>{
-      setTimeout(()=>applyGrid2Fallback(), 120);
+      setTimeout(()=>window.__umGrid2Fallback?.run?.(), 120);
     });
 
     // ATOMIC: build bubbles/icons/etc before revealing
